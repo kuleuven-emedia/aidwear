@@ -1,0 +1,75 @@
+host_ip : "127.0.0.1"
+is_master_broker: True
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+duration: null
+
+logging_spec:
+  stream_period_s     : 30
+
+  stream_hdf5         : True
+  stream_csv          : False
+  stream_video        : False
+  stream_audio        : False
+
+  dump_csv            : False
+  dump_hdf5           : False
+  dump_video          : False
+  dump_audio          : False
+
+video_codec_config_filepath : null
+audio_codec_config_filepath : null
+
+
+producer_specs:
+  - package: "ai"
+    class: "IntentProducer"
+    settings: {}
+
+
+consumer_specs: []
+
+
+pipeline_specs:
+  - package: "aidwear"
+    class: "CyberlegPipeline"
+    settings:
+      dt: 0.01
+      niclas:
+        device_mapping:
+          torso       : "CF:16:02:45:A6:3B"
+          thigh_right : "74:50:7F:A5:C2:18"
+          thigh_left  : "45:7B:E2:8D:B1:F6"
+          shank_right : "27:6D:73:51:55:D9"
+          shank_left  : "BA:FE:71:7C:DA:D8"
+        sampling_rate_hz: 100
+        service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+        char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+        is_acc    : False
+        is_gyr    : True
+        is_mag    : False
+        is_euler  : True
+        is_quat   : False
+        is_temp   : False
+        is_baro   : False
+        is_hum    : False
+      motors:
+        sampling_rate_hz: 60
+        device_mapping:
+          knee:
+            can_id: 1
+            type: "AK10_9"
+          ankle:
+            can_id: 2
+            type: "AK80_8"
+
+
+      stream_in_specs:
+        - package: "ai"
+          class: "IntentProducer"
+          settings: {}
