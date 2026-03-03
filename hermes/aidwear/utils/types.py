@@ -1,7 +1,13 @@
 from dataclasses import dataclass
 from enum import Enum
+from collections import deque
+from multiprocessing import Queue
+from multiprocessing.synchronize import Event as _Event
+from multiprocessing.sharedctypes import Synchronized
+import can
 import struct
-from typing import Optional
+from typing import Callable, Optional
+import numpy as np
 
 
 @dataclass
@@ -28,7 +34,7 @@ class ServoParameters:
     current_max: float
     torque_min: float
     torque_max: float
-    Kt_nominal: float # from the TMotor website (actually 1/Kvll)
+    Kt_nominal: float  # from the TMotor website (actually 1/Kvll)
     current_factor: float
     Kt_actual: float
     gear_ratio: float
@@ -108,7 +114,15 @@ class ServoCanPacketEnum(Enum):
 
 
 @dataclass
-class ServoMotorState:
+class BatteryData:
+    timestamp: float
+    voltage: float
+    current: float
+    power: float
+
+
+@dataclass
+class ServoMotorData:
     timestamp: float
     position: float
     velocity: float
@@ -117,32 +131,35 @@ class ServoMotorState:
     error: bytes
 
 
-class PhaseStateEnum:
-    class Walking(Enum):
+class StateEnum:
+    class Idle(Enum):
         IDLE = 0
-        WALKING = 1
+
+    class Walking(Enum):
+        IDLE = 1
+        WALKING = 2
 
     class SitToStand(Enum):
-        STANCE = 2
-        LOWERING = 3
-        SITTING = 4
-        RISING = 5
+        STANCE = 3
+        LOWERING = 4
+        SITTING = 5
+        RISING = 6
 
     class StairAscent(Enum):
-        STANCE = 6
-        SWING = 7
-        PUSH_OFF = 8
+        STANCE = 7
+        SWING = 8
+        PUSH_OFF = 9
 
     class StairDescent(Enum):
-        DOUBLE_SUPPORT = 9
-        SWING = 10
-        STANCE = 11
+        DOUBLE_SUPPORT = 10
+        SWING = 11
+        STANCE = 12
 
 
 @dataclass
-class PhaseTransition:
+class StateTransition:
     timestamp: float
-    phase: int
+    state: int
 
 
 @dataclass
@@ -153,16 +170,44 @@ class ModeTransition:
 
 
 @dataclass
-class ModeStateTuple:
+class PhaseEstimate:
+    timestamp: float
+    phase: float
+
+
+@dataclass
+class MotorCommand:
+    motor_id: str
+    timestamp: float
+    data: list[bytes]
+    control_mode: int
+
+
+@dataclass
+class ModeContext:
+    bus: can.BusABC
+    K: dict[str, ServoImpedanceGains]
+    motor_latest_data: dict[int, deque[ServoMotorData | None]]
+    fatigue: "Synchronized[float]"
+    mode_changed_queue: "Queue[ModeTransition]"
+    state_changed_queue: "Queue[StateTransition]"
+    phase_estimate_queue: "Queue[PhaseEstimate]"
+    motor_command_queue: "Queue[MotorCommand]"
+    is_stop_new_data_event: _Event
+
+
+@dataclass
+class ModeTuple:
     id: int
     text: str
 
 
-class ModeStateEnum(Enum):
-    WALKING = ModeStateTuple(id=0, text="walking")
-    SIT_TO_STAND = ModeStateTuple(id=1, text="sit_to_stand")
-    STAIR_ASCENT = ModeStateTuple(id=2, text="stair_ascent")
-    STAIR_DESCENT = ModeStateTuple(id=3, text="stair_descent")
+class ModeEnum(Enum):
+    IDLE = ModeTuple(id=0, text="idle")
+    WALKING = ModeTuple(id=1, text="walking")
+    SIT_TO_STAND = ModeTuple(id=2, text="sit_to_stand")
+    STAIR_ASCENT = ModeTuple(id=3, text="stair_ascent")
+    STAIR_DESCENT = ModeTuple(id=4, text="stair_descent")
 
 
 class StairLeadingLegEnum(Enum):
@@ -290,12 +335,14 @@ class WalkingParameters:
 
 
 @dataclass
-class CyberlegNiclaMapping:
+class ProsthesisNiclaMapping:
     torso: str
     thigh_right: str
     thigh_left: str
     shank_right: str
     shank_left: str
+    # foot_right: str
+    # foot_left: str
 
 
 @dataclass
@@ -304,6 +351,19 @@ class MaskParsingTuple:
     format: str
     key: str
     num_bytes: int
+
+
+class NiclaI2cCommand(Enum):
+    CMD_START = 0xF0
+    CMD_SEND = 0xAA
+    CMD_STOP = 0x0F
+    CMD_DEFAULT = 0x00
+    CMD_DEFAULT_REPLY = 0xFF
+
+
+class NiclaConnectionType(Enum):
+    BLE = 0
+    I2C = 1
 
 
 class NiclaPacketMask(Enum):
@@ -318,7 +378,7 @@ class NiclaPacketMask(Enum):
 
 
 @dataclass
-class NiclaSample:
+class NiclaData:
     timestamp: int
     sequence_id: int
     acceleration: Optional[tuple[int, int, int]] = None
@@ -345,6 +405,103 @@ class NiclaSample:
 
 
 @dataclass
-class CyberlegMotorMapping:
+class NiclaNumpyGetter:
+    func: Callable[[list[NiclaData]], np.ndarray]
+
+
+class NiclaDataGetMethods(Enum):
+    acceleration = NiclaNumpyGetter(
+        func=lambda data: np.array(
+            list(map(lambda n: n.acceleration, data)), dtype=np.int16
+        )
+    )
+    gyroscope = NiclaNumpyGetter(
+        func=lambda data: np.array(
+            list(map(lambda n: n.gyroscope, data)), dtype=np.int16
+        )
+    )
+    magnetometer = NiclaNumpyGetter(
+        func=lambda data: np.array(
+            list(map(lambda n: n.magnetometer, data)), dtype=np.int16
+        )
+    )
+    euler = NiclaNumpyGetter(
+        func=lambda data: np.array(list(map(lambda n: n.euler, data)), dtype=np.float32)
+    )
+    quaternion = NiclaNumpyGetter(
+        func=lambda data: np.array(
+            list(map(lambda n: n.quaternion, data)), dtype=np.float32
+        )
+    )
+    temperature = NiclaNumpyGetter(
+        func=lambda data: np.array(
+            list(map(lambda n: n.temperature, data)), dtype=np.float32
+        )
+    )
+    pressure = NiclaNumpyGetter(
+        func=lambda data: np.array(
+            list(map(lambda n: n.pressure, data)), dtype=np.float32
+        )
+    )
+    humidity = NiclaNumpyGetter(
+        func=lambda data: np.array(
+            list(map(lambda n: n.humidity, data)), dtype=np.float32
+        )
+    )
+
+
+class NiclaPayloadMode:
+    def __init__(
+        self,
+        is_acc: bool,
+        is_gyr: bool,
+        is_mag: bool,
+        is_euler: bool,
+        is_quat: bool,
+        is_temp: bool,
+        is_baro: bool,
+        is_hum: bool,
+    ):
+        self._data_getters: dict[str, Callable[[list[NiclaData]], np.ndarray]] = {}
+
+        if is_acc:
+            self._data_getters[NiclaDataGetMethods.acceleration.name] = (
+                NiclaDataGetMethods.acceleration.value.func
+            )
+        if is_gyr:
+            self._data_getters[NiclaDataGetMethods.gyroscope.name] = (
+                NiclaDataGetMethods.gyroscope.value.func
+            )
+        if is_mag:
+            self._data_getters[NiclaDataGetMethods.magnetometer.name] = (
+                NiclaDataGetMethods.magnetometer.value.func
+            )
+        if is_euler:
+            self._data_getters[NiclaDataGetMethods.euler.name] = (
+                NiclaDataGetMethods.euler.value.func
+            )
+        if is_quat:
+            self._data_getters[NiclaDataGetMethods.quaternion.name] = (
+                NiclaDataGetMethods.quaternion.value.func
+            )
+        if is_temp:
+            self._data_getters[NiclaDataGetMethods.temperature.name] = (
+                NiclaDataGetMethods.temperature.value.func
+            )
+        if is_baro:
+            self._data_getters[NiclaDataGetMethods.pressure.name] = (
+                NiclaDataGetMethods.pressure.value.func
+            )
+        if is_hum:
+            self._data_getters[NiclaDataGetMethods.humidity.name] = (
+                NiclaDataGetMethods.humidity.value.func
+            )
+
+    def get_data_getters(self) -> dict[str, Callable[[list[NiclaData]], np.ndarray]]:
+        return self._data_getters
+
+
+@dataclass
+class ProsthesisMotorMapping:
     knee: str
     ankle: str

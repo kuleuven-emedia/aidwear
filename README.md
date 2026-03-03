@@ -1,5 +1,17 @@
 # AidWear
-Cyberleg transfemoral prosthesis controller, wrapped with KU Leuven's [HERMES](https://github.com/maximyudayev/hermes) framework to communicate to an external AI controller for intent-based locomotion mode selection and fatigue-based support level moderation.
+CyberLeg v2 prosthesis controller, wrapped with KU Leuven's [HERMES](https://github.com/maximyudayev/hermes) framework to communicate to an external AI controller for intent-based locomotion mode selection and fatigue-based support level moderation.
+
+The prosthesis uses a hierarchical controller, with each layer controlling the layer below it:
+- High-level -> AI-based intent (ambulation mode) and fatigue forecasting
+- Mid-level -> intra-mode normative kinematics trajectory tracking
+- Low-level -> field-oriented motor control
+
+<p align="center">
+  <img src="images/closed_loop.png" alt="Overview of continuous operation of the active prosthesis" width="45%" />
+  <img src="images/system_overview.png" alt="Architecture of the active prosthesis system" width="45%" />
+</p>
+
+These mid-level state machines are defined based on the derived locomotion kinematic equations for the specific rigid body, within the degrees-of-freedom it offers, to track a desired normative motion trajectory with a desired frequency response of the control system.
 
 ## Roadmap
 - [ ] Implement motor communication to the Epos 4 Compact motors
@@ -7,30 +19,82 @@ Cyberleg transfemoral prosthesis controller, wrapped with KU Leuven's [HERMES](h
 - [ ] Choose the gain constants for the impedance controller
 
 ## Structure
-The exoskeleton-specific files:
+The prosthesis-specific files:
 ```
 └──hermes/
    ...
+   ├──aidwear_cli/
+   │  ├──producer.py
+   │  └──stream.py
+   ├──aidwear_gui/
+   │  ├──producer.py
+   │  └──stream.py
+   ├──aidwear_ai/
+   │  ├──pipeline.py
+   │  └──stream.py
+   ...
    └──aidwear/
-      ├──fsm/
-      │  ├──cyberleg_handler.py
-      │  ├──mode_selection.py
-      │  └──state_machines.py
-      ├──motor_control/
-      │  ├──cubemars_can_commands.py
-      │  ├──impedance_tuning.py
-      │  └──torque_characterization.py
+      ├──controller/
+      │  ├──prosthesis_handler.py
+      │  └──mode_selection.py
+      ├──state_machines/
+      │  ├──base.py
+      │  ├──idle.py
+      │  ├──sit_to_stand.py
+      │  ├──stair_ascent.py
+      │  ├──stair_descent.py
+      │  └──walking.py
+      ├──can_control/
+      │  ├──emulator_cubemars.py
+      │  ├──motor_cubemars.py
+      │  └──pmu_mateksys.py
+      ├──sensors/
+      │  ├──can_backend.py
+      │  └──nicla_backend.py
       ├──utils/
       │  ├──types.py
       │  └──utilities.py
+      ├──pipeline.py
+      └──stream.py
       ...
 ```
- - `cyberleg_handler.py` is the main AsyncIO routine that manages the functionality of the prosthesis. It manages a persistent BLE connection to onboard Nicla Sense ME sensors, reads incoming IMU data from them, triggers transitions between locomotion mode state machines, and continuously passes data to the currently active state machine to control the prosthesis.
- - `mode_selection.py` contains the macro state machine logic that manages safe transitions between the different locomotion modes of the prosthesis, based on the upstream high-level controller.
- - `state_machines.py` contains all state machines logic for each locomotion mode FSM (states, transitions, actions, ...).
- - `cubemars_can_commands.py` contains all functions required to control the motors via CAN.
+### Prosthesis
+ - `prosthesis_handler.py` is the main AsyncIO routine that manages the functionality of the prosthesis:
+    1. Manages a persistent BLE/I2C connection to the onboard Nicla Sense ME motion sensors;
+    1. Manages a persistent CAN connection to the onboard motors;
+    1. Reads incoming IMU, motors, and telemetry data;
+    1. Indicates upstream AI/UI intent transitions to `mode_selection` to trigger locomotion mode change;
+    1. Continuously passes data to the currently active locomotion mode state machine to control the prosthesis;
+ - `mode_selection.py` contains the macro state machine logic that manages safe transitions between the different locomotion modes of the prosthesis, based on the upstream high-level AI/UI controller.
+ - `state_machines/` folder contains all state machines logic for each locomotion mode FSM (states, transitions, gait phase estimation, impedance/torque control commands to the motors, etc.).
  - `types.py` defines convenience datatypes that ensure safe typing between different coupled components of the system.
  - `utilities.py` shared static logic, reusable by multiple distinct components.
+
+#### Inputs
+ - `can_backend.py` decouples CAN motor/PMU data receiving and parsing logic for both, virtual (testing) and physical (prosthesis) CAN setups.
+ - `nicla_backend.py` decouples specified Nicla Sense ME physical connection (BLE or I2C) with a uniform plug-and-play interface.
+
+#### Outputs
+ - `motor_cubemars.py` contains all functions required to communicate with and control the specific motors via CAN.
+ - `pmu_mateksys.py` placeholder to control the MatekSys DroneCAN power monitor unit.
+ - `emulator_cubemars.py` contains a callable meant to be run in a thread/process to create a virtual CAN bus that generates fake motor data for validation of the overall system logic.
+
+### HERMES
+#### CyberLeg
+ - `aidwear/pipeline.py` HERMES Node integrating CyberLeg v2 prosthesis with the rest of the sensing and companion computing ecosystem.
+ - `aidwear/stream.py` HERMES datastracture containing all the data generated by the CyberLeg v2 prosthesis.
+
+#### (Option #1) Local shell terminal
+ - `aidwear_cli/producer.py` HERMES Node enabling CLI based manual selection of intent [0, X] and fatigue level [%0, %100] (must start from %, will autoclip values to 0-100 range), when using the prosthesis in standalone mode.
+ - `aidwear_cli/stream.py` HERMES datastracture containing all valid CLI entries of intent and fatigue.
+
+#### (Option #2) Remote phone GUI
+ - `aidwear_gui/producer.py` Android smartphone app enabling manual selection of intent [0, X] and fatigue level [0, 100] (will autoclip values to 0-100 range), when using the prosthesis with a user-friendly smartphone interface.
+ - `aidwear_gui/stream.py` HERMES datastracture containing all valid GUI entries of intent and fatigue.
+
+#### (Option #3) Companion AI device
+ - `aidwear_ai/pipeline.py` PyTorch model enabling automated selection of intent [0, X] and fatigue level [0, 100], when using the prosthesis in end-to-end automated approach.
+ - `aidwear_ai/stream.py` HERMES datastracture containing all valid AI predictions of intent and fatigue.
 
 ## Installation
 Create, activate, and configure a Python environment:
@@ -39,6 +103,75 @@ python -m venv .venv
 .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+### Nicla Sense ME
+The `prosthesis.yml` file offers an option to configure the system to use [BLE or I2C](prosthesis.yml#L45) for communication with the onboard [Nicla motion sensors](https://docs.arduino.cc/hardware/nicla-sense-me/). The `device_mapping` must be correpsondingly selected (commented/uncommented) and updated with the correct MAC addresses (in the case of BLE).
+
+Use [PlatformIO](https://platformio.org/) to program and debug the firmware as needed, instead of the limited Arduino IDE.
+
+#### (Option #1) - `BLE`
+Uses the `bleak` package on the Raspberry Pi to receive wireless Bluetooth Low Energy data packets from the Nicla Sense ME devices. Quality is subject to RF interference from other devices, throughput limitation, BLE issues, lack of continuous synchronization between devices.
+
+The prosthesis uses the integrated motion sensors in a "Push" strategy, where the sensors push the latest motion information into the prosthesis, to drive its internal logic. The prosthesis uses the most up-to-date and lowest latency kinematics knowledge, without any attempts at syncrhonizing data. This allows it to maintain tight soft realtime guarantees.
+
+The [BLE firmware](sensors_firmware/nicla_ble/nicla_ble.ino) compiles with flags that enable desired modalities - by default, gyroscope and Euler orientation data.
+
+The sensors visualize the state of the sensors with the onboard LED for easier troubleshooting and validation of the health of the prosthesis.
+
+![LED blink pattern for different states of the BLE motion sensors](images/nicla_leds.gif)
+
+> [!IMPORTANT]
+> Current gyroscope + euler configuration (with 9 bytes of metadata) is 27 total bytes/packet, practically limited to 40Hz for 5 concurrently streaming wireless sensors - important for the bandwidth estimation of the mid-level controller and the overall system.
+
+#### (Option #2) - `I2C`
+The integrated motion and environment sensors are configured to use the [TWIS1](https://docs-be.nordicsemi.com/bundle/nRF52832_PS_v1.9/raw/resource/enus/nRF52832_PS_v1.9.pdf#%5B%7B%22num%22%3A776%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C56.692%2C752.879%2Cnull%5D) peripheral for I2C communication, and exposed via the ESLOV connector.
+
+Communicates to each Nicla Sense ME over a shared I2C bus on the [ESLOV connector (p.4)](https://docs.arduino.cc/resources/pinouts/ABX00050-full-pinout.pdf), via the Raspberry Pi's [`busio`](https://docs.circuitpython.org/en/latest/shared-bindings/busio) package.
+To avoid polluting the I2C bus and wasting Pi's resources, each Nicla indicates via an interrupt that new data is available to be read.
+The Raspberry Pi then accesses the corresponding device by its I2C address to retrieve the new (burst) data.
+
+> [!IMPORTANT]
+> Make sure to wire the INT pin (`P0_19`) of each of the Nicla's 5-pin ESLOV connectors to the Raspberry Pi's digital GPIO's [31](https://pinout.xyz/pinout/pin31_gpio6/), [11](https://pinout.xyz/pinout/pin11_gpio17/), [13](https://pinout.xyz/pinout/pin13_gpio27/), [15](https://pinout.xyz/pinout/pin15_gpio22/), and [16](https://pinout.xyz/pinout/pin16_gpio23/), in any order, but consistent with the specification in the [`prosthesis.yml`](prosthesis.yml#L54-L69) file. This does not conflict with the pin occupation of the attached [CAN-FD HAT](https://www.waveshare.com/wiki/2-CH_CAN_FD_HAT#Interfaces). E.g.:
+> | Nicla | Raspberry Pi 5 pin | I2C address |
+> | - | - | - |
+> | `torso` | [GPIO6 (pin 31)](https://pinout.xyz/pinout/pin31_gpio6/) | 0x11 |
+> | `thigh_right` | [GPIO17 (pin 11)](https://pinout.xyz/pinout/pin11_gpio17/) | 0x12 |
+> | `shank_right` | [GPIO27 (pin 13)](https://pinout.xyz/pinout/pin13_gpio27/) | 0x13 |
+> | `thigh_left` | [GPIO22 (pin 15)](https://pinout.xyz/pinout/pin15_gpio22/) | 0x14 |
+> | `shank_left` | [GPIO23 (pin 16)](https://pinout.xyz/pinout/pin16_gpio23/) | 0x15 |
+
+> [!IMPORTANT]
+> Also make sure to flash each Nicla with the right firmware and uniquely addressable via the [`I2C_ADDRESS`](sensors_firmware/nicla_i2c/nicla_i2c.ino#L5) macro, consistent with the address specified in the `prosthesis.yml` file.
+
+The standard I2C interface on the Raspberry Pi 5 does not support clock stretching. Nicla's non-deterministic threaded processing does not timely detect the incoming I2C request and doesn't acknowledge transactions. Enable an alternative high-speed I2C interface on the Pi under by adding into the boot configuration file `/boot/firmware/config.txt`, and wiring SDA to [GPIO4 (pin 7)](https://pinout.xyz/pinout/pin7_gpio4/) and SCL to [GPIO5 (pin 29)](https://pinout.xyz/pinout/pin29_gpio5/), both of which conveniently do not interfere with the CAN-FD hat. No external pull-up resistors are needed.
+```
+dtoverlay=i2c2-pi5,pins_4_5,baudrate=400000
+```
+
+Restart and check if the kernel module is enabled with:
+```bash
+ls /dev/i2c-2
+```
+
+Install support tools for CLI-based verification. Will help detect if slave devices are not properly connected.
+```bash
+sudo apt-get install i2c-tools
+```
+
+Program all the Nicla devices in PlatformIO or Arduino IDE.
+Run the convenient utility to detect if all devices are connected to the bus and are detected by the Pi:
+```bash
+i2cdetect -y 2
+```
+
+> [!WARNING]
+> Verify signal integrity on the I2C bus. The wire harness packs SCL and SDA unshielded wires tightly together and at high clock speeds (400kHz) may cause cross-talk.
+
+##### Nicla Sense ME
+The integrated motion and environment sensors are configured to use the [TWIS1](https://docs-be.nordicsemi.com/bundle/nRF52832_PS_v1.9/raw/resource/enus/nRF52832_PS_v1.9.pdf#%5B%7B%22num%22%3A776%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C56.692%2C752.879%2Cnull%5D) peripheral for I2C communication, and exposed via the ESLOV connector. Use [PlatformIO](https://platformio.org/) to program and debug the firmware as needed, to validate that I2C commands are received and correctly interpreted.
+
+> [!IMPORTANT]
+> The internal processing of the Nicla's RTOS stretches the I2C clock for ~500us per transaction. Consider batching multiple queued up samples into a single transaction to mask latency with throughput. This implies updating firmware and balancing the requested sample rate with the number of connected devices.
 
 ## Networking
 | device | eth0 | wlan0 |
@@ -57,3 +190,43 @@ This will wrap your custom `prosthesis.yml` configuration into the rest of the H
 > [!IMPORTANT]
 > You can also generically run the HERMES CLI to manually configure in-line any desired arguments `hermes-cli -o ./data -f prosthesis.yml -e project=AidWear trial=<X>`
 > Make sure to update the `trial` number on every launch of the script. It's used to create unique folders for data collection, to avoid overwriting previously collected data.
+
+### Manual standalone operation
+When running in [standalone CLI mode](#option-1-local-shell-terminal), press the activity id on the keyboard, followed by 'Enter' to manually switch the prosthesis controller to it:
+| Activity | ID |
+| - | - |
+| Idle | 0 |
+| Walking | 1 |
+| Sit-To-Stand | 2 |
+| Stair Ascent | 3 |
+| Stair Descent | 4 |
+
+And enter a percentage of fatigue to manually update the level of assistance of the prosthesis controller by '%', followed by number 0-100, followed by 'Enter' (e.g. `$> %70`).
+
+## Testing
+For benchtop testing of the code (state machines, AI, new motion sensors fimrware, etc.) CAN communication to/from motors is simulated by the `emulator_cubemars` via the [`is_emulate_can`](prosthesis.yml#L79) flag in the configuration `prosthesis.yml` file. The emulator is automatically launched by the `prosthesis_handler` as a subprocess, once the flag is set to `True`. It creates a virtual CAN network using the [`virtualcan`](https://github.com/windelbouwman/virtualcan/tree/master) package.
+
+Install the `virtualcan` package in a folder outside the current project:
+```bash
+git clone https://github.com/windelbouwman/virtualcan.git ~/Documents/virtualcan
+```
+
+Install the Python package into the current virtual environment:
+```bash
+pip install ~/Documents/virtualcan/python
+```
+
+Install [Cargo and Rust](https://doc.rust-lang.org/cargo/getting-started/installation.html) to locally host a CAN simulation server (mandatory):
+```bash
+curl https://sh.rustup.rs -sSf | sh
+```
+
+Launch a virtualcan server to enable simulated inter-process CAN communication between `prosthesis_handler` and `emulator_cubemars`:
+```bash
+cargo run --release -- --port 18881
+```
+
+Run the launch script the same way as for actual operation, from VSCode or via the bash script.
+```bash
+. run.sh
+```

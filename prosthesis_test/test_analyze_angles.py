@@ -260,7 +260,7 @@ def make_quat_handler(name, addr):
                     stats.stats["quat"]["missed"] += missed
                     if missed > 1:  # Only log if more than one packet missed
                         logger.warning(
-                            f"[{name}] Missed {missed} QUAT packets ({expected_seq}..{sequence-1})"
+                            f"[{name}] Missed {missed} QUAT packets ({expected_seq}..{sequence - 1})"
                         )
 
             # Update stats and log data
@@ -312,7 +312,7 @@ def make_gyro_handler(name, addr):
                     stats.stats["gyro"]["missed"] += missed
                     if missed > 1:
                         logger.warning(
-                            f"[{name}] Missed {missed} GYRO packets ({expected_seq}..{sequence-1})"
+                            f"[{name}] Missed {missed} GYRO packets ({expected_seq}..{sequence - 1})"
                         )
 
             # Update stats and log data
@@ -366,7 +366,7 @@ def make_euler_handler(name, addr):
                     stats.stats["euler"]["missed"] += missed
                     if missed > 1:
                         logger.warning(
-                            f"[{name}] Missed {missed} EULER packets ({expected_seq}..{sequence-1})"
+                            f"[{name}] Missed {missed} EULER packets ({expected_seq}..{sequence - 1})"
                         )
 
             # Update stats and log data
@@ -444,7 +444,7 @@ def make_status_handler(name, addr):
             # Only log occasionally to avoid flooding
             if time.time() % 10 < 0.5:  # Roughly every 10 seconds
                 logger.info(
-                    f"[{name}] STATUS | Uptime:{uptime/1000:.1f}s | "
+                    f"[{name}] STATUS | Uptime:{uptime / 1000:.1f}s | "
                     f"Buffer Fill: QUAT:{quat_fill}% GYRO:{gyro_fill}% EULER:{euler_fill}%"
                 )
         except Exception as e:
@@ -499,7 +499,7 @@ async def connect_device(device, retry_count=0):
 
         # Retry logic
         if retry_count < 2:  # Try up to 3 times (0, 1, 2)
-            logger.info(f"Retrying connection to {name} (attempt {retry_count+2}/3)")
+            logger.info(f"Retrying connection to {name} (attempt {retry_count + 2}/3)")
             await asyncio.sleep(1)  # Wait between retries
             _connecting.discard(addr)
             return await connect_device(device, retry_count + 1)

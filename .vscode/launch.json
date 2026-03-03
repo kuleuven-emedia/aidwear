@@ -5,6 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "AidWear",
             "type": "debugpy",
             "request": "launch",
@@ -13,7 +20,7 @@
             "args": [
                 "--out_dir", "data",
                 "--experiment", "project=AidWear", "trial=0",
-                "--config_file", "cyberleg.yml"
+                "--config_file", "prosthesis.yml"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"

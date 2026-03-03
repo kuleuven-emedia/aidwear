@@ -1,2 +1,2 @@
-from .stream import CyberlegStream
-from .pipeline import CyberlegPipeline
+from .stream import ProsthesisStream
+from .pipeline import ProsthesisPipeline
