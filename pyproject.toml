@@ -1,0 +1,33 @@
+[project]
+name = "revalexo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pysio-hermes>=0.3.0",
+]
+
+[project.optional-dependencies]
+exo = [
+    "bleak",
+    "numpy",
+    "python-can",
+    "python-statemachine",
+    "scipy",
+]
+ai = [
+    "bleak",
+    "python-can",
+    "python-statemachine",
+    "torch",
+    "torchvision",
+    "torchcodec",
+    "fvcore",
+    "pyyaml",
+    "pandas",
+    "numpy",
+]
+
+[tool.uv.sources]
+pysio-hermes = { git = "https://github.com/maximyudayev/hermes.git" }

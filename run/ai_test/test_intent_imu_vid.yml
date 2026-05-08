@@ -1,0 +1,308 @@
+host_ip : "127.0.0.1"
+is_master_broker: True
+duration_s: 60
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+
+logging_spec:
+  stream_period_s     : 10
+
+  stream_hdf5         : True
+  stream_csv          : False
+  stream_video        : False
+  stream_audio        : False
+
+  dump_csv            : False
+  dump_hdf5           : False
+  dump_video          : False
+  dump_audio          : False
+
+video_codec_config_filepath : 'run/video_codec_jetson.yml'
+audio_codec_config_filepath : null
+
+
+producer_specs:
+  - package: "pupillabs"
+    class: "PupilUvcProducer"
+    topic: "smartglasses"
+    settings:
+      video_image_format: "MJPEG"
+      camera_mapping:
+        left_eye:
+          name: "Pupil Cam2 ID0"
+          fps: 120
+          resolution:
+            - 400
+            - 400
+            - 3
+          bandwidth_factor: 1.0
+          uvc_controls:
+            Auto Exposure Mode: 1
+            Auto Exposure Priority: 0
+            Absolute Exposure Time: 15
+            Auto Focus: 0
+            Absolute Focus: 1
+            Zoom absolute control: 0
+            Pan control: 0
+            Tilt control: 0
+            Roll absolute control: 0
+            Privacy Shutter control: 0
+            Backlight Compensation: 121
+            Brightness: 0
+            Contrast: 48
+            Gain: 0
+            Power Line frequency: 1
+            Hue: 0
+            Saturation: 0
+            Sharpness: 2
+            Gamma: 200
+            White Balance temperature: 4600
+            White Balance temperature,Auto: 1
+        right_eye:
+          name: "Pupil Cam2 ID1"
+          fps: 120
+          resolution:
+            - 400
+            - 400
+            - 3
+          bandwidth_factor: 1.0
+          uvc_controls:
+            Auto Exposure Mode: 1
+            Auto Exposure Priority: 0
+            Absolute Exposure Time: 15
+            Auto Focus: 0
+            Absolute Focus: 1
+            Zoom absolute control: 0
+            Pan control: 0
+            Tilt control: 0
+            Roll absolute control: 0
+            Privacy Shutter control: 0
+            Backlight Compensation: 121
+            Brightness: 0
+            Contrast: 48
+            Gain: 0
+            Power Line frequency: 1
+            Hue: 0
+            Saturation: 0
+            Sharpness: 2
+            Gamma: 200
+            White Balance temperature: 4600
+            White Balance temperature,Auto: 1
+        ego:
+          name: "Pupil Cam1 ID2"
+          fps: 30
+          resolution:
+            - 720
+            - 1280
+            - 3
+          bandwidth_factor: 1.0
+          uvc_controls:
+            Auto Exposure Mode: 8
+            Auto Exposure Priority: 1
+            Absolute Exposure Time: 240
+            Backlight Compensation: 1
+            Brightness: 0
+            Contrast: 32
+            Gain: 0
+            Power Line frequency: 1
+            Hue: 0
+            Saturation: 60
+            Sharpness: 2
+            Gamma: 100
+            White Balance temperature: 4600
+            White Balance temperature,Auto: 1
+    logging_spec:
+      stream_period_s     : 10
+      stream_hdf5         : True
+      stream_csv          : False
+      stream_video        : True
+      stream_audio        : False
+      dump_csv            : False
+      dump_hdf5           : False
+      dump_video          : False
+      dump_audio          : False
+
+
+consumer_specs: []
+
+
+pipeline_specs:
+  - package: "revalexo.ai"
+    class: "IntentClassifierPipeline"
+    topic: "ai_intent"
+    settings:
+      stream_out_spec:
+        config_path: "hermes/revalexo/ai/utils/configs/x3d_xs_dcl_concat_ln.yml"
+        device: "cuda"
+        gravity_scaling_factor: 4
+        gyroscope_scaling_factor: 1000
+        module_params:
+          prediction_horizons: [0, 0.1, 0.2, 0.3, 0.5, 1]
+          output_classes:
+            Level ground walking: 0
+            Sit to stand: 1
+            Stand to sit: 2
+            Sitting: 3
+            Stair up: 4
+            Stair down: 5
+            Ramp up: 6
+            Ramp down: 7
+            Grass walking: 8
+            Uneven ground walking: 9
+            Carry: 10
+          input_features:
+            raw_imu:
+              num_features:
+                - 120
+                - 42
+              dtype: "float32"
+            video:
+              stride: 1
+              num_features:
+                - 3
+                - 4
+                - 720
+                - 1280
+              dtype: "uint8"
+        modalities:
+          raw_imu:
+            pelvis:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            foot_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            foot_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+          video:
+            ego:
+              buf_len: 10
+              num_features:
+                - 3
+                - 720
+                - 1280
+              dtype: "uint8"
+
+      stream_in_specs:
+        - package: "pupillabs"
+          class: "PupilUvcProducer"
+          topic: "smartglasses"
+          settings:
+            video_image_format: "MJPEG"
+            camera_mapping:
+              left_eye:
+                name: "Pupil Cam2 ID0"
+                fps: 120
+                resolution:
+                  - 400
+                  - 400
+                  - 3
+                bandwidth_factor: 1.0
+                uvc_controls:
+                  Auto Exposure Mode: 1
+                  Auto Exposure Priority: 0
+                  Absolute Exposure Time: 15
+                  Auto Focus: 0
+                  Absolute Focus: 1
+                  Zoom absolute control: 0
+                  Pan control: 0
+                  Tilt control: 0
+                  Roll absolute control: 0
+                  Privacy Shutter control: 0
+                  Backlight Compensation: 121
+                  Brightness: 0
+                  Contrast: 48
+                  Gain: 0
+                  Power Line frequency: 1
+                  Hue: 0
+                  Saturation: 0
+                  Sharpness: 2
+                  Gamma: 200
+                  White Balance temperature: 4600
+                  White Balance temperature,Auto: 1
+              right_eye:
+                name: "Pupil Cam2 ID1"
+                fps: 120
+                resolution:
+                  - 400
+                  - 400
+                  - 3
+                bandwidth_factor: 1.0
+                uvc_controls:
+                  Auto Exposure Mode: 1
+                  Auto Exposure Priority: 0
+                  Absolute Exposure Time: 15
+                  Auto Focus: 0
+                  Absolute Focus: 1
+                  Zoom absolute control: 0
+                  Pan control: 0
+                  Tilt control: 0
+                  Roll absolute control: 0
+                  Privacy Shutter control: 0
+                  Backlight Compensation: 121
+                  Brightness: 0
+                  Contrast: 48
+                  Gain: 0
+                  Power Line frequency: 1
+                  Hue: 0
+                  Saturation: 0
+                  Sharpness: 2
+                  Gamma: 200
+                  White Balance temperature: 4600
+                  White Balance temperature,Auto: 1
+              ego:
+                name: "Pupil Cam1 ID2"
+                fps: 30
+                resolution:
+                  - 720
+                  - 1280
+                  - 3
+                bandwidth_factor: 1.0
+                uvc_controls:
+                  Auto Exposure Mode: 8
+                  Auto Exposure Priority: 1
+                  Absolute Exposure Time: 240
+                  Backlight Compensation: 1
+                  Brightness: 0
+                  Contrast: 32
+                  Gain: 0
+                  Power Line frequency: 1
+                  Hue: 0
+                  Saturation: 60
+                  Sharpness: 2
+                  Gamma: 100
+                  White Balance temperature: 4600
+                  White Balance temperature,Auto: 1

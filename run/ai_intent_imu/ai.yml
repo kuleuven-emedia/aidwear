@@ -1,0 +1,219 @@
+host_ip: "10.220.24.1"
+is_master_broker: False
+
+remote_subscriber_ips:
+  - "10.220.24.100"
+remote_publisher_ips:
+  - "10.220.24.100"
+connections: []
+  # - ssh_username: "revalexo"
+  #   ssh_host_ip: "10.220.25.102"
+  #   platform: "Linux"
+  #   config_filepath: "./run/ai_intent_imu/exo.yml"
+  #   project_dir: "~/Documents/Revalexo"
+  #   output_dir: "./data"
+
+is_remote_kill: True
+remote_kill_ip: "10.220.24.100"
+
+
+logging_spec:
+  stream_period_s     : 30
+
+  stream_hdf5         : True
+  stream_csv          : False
+  stream_video        : False
+  stream_audio        : False
+
+  dump_csv            : False
+  dump_hdf5           : False
+  dump_video          : False
+  dump_audio          : False
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+
+producer_specs: []
+  # - package: "nicla_sense_me"
+  #   class: "NiclaSenseMeProducer"
+  #   topic: "wearable_nicla"
+  #   settings:
+  #     niclas:
+  #       sampling_rate_hz: 50
+  #       connection_type: "BLE"  # BLE or I2C
+  #       device_mapping:  # for BLE connection type
+  #         pelvis      : "BE:1C:35:65:1B:7D"
+  #         foot_right  : "DF:CA:13:E0:E1:59"
+  #         foot_left   : "CD:7E:7C:F4:4A:11"
+  #       service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+  #       char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+  #       is_acc    : True
+  #       is_gyr    : True
+  #       is_mag    : False
+  #       is_euler  : True
+  #       is_quat   : False
+  #       is_temp   : False
+  #       is_baro   : False
+  #       is_hum    : False
+
+
+consumer_specs: []
+
+
+pipeline_specs:
+  - package: "revalexo.ai"
+    class: "IntentClassifierPipeline"
+    topic: "ai_intent"
+    settings:
+      stream_out_spec:
+        config_path: "hermes/revalexo/ai/utils/configs/dcl_acc_gyro.yml"
+        device: "cuda"
+        gravity_scaling_factor: 4
+        gyroscope_scaling_factor: 1000
+        imu_type: "mvn"  # ["mvn", "nicla"]
+        module_params:
+          prediction_horizons: [0, 0.1, 0.2, 0.3, 0.5, 1]
+          output_classes:
+            Level ground walking: 0
+            Sit to stand: 1
+            Stand to sit: 2
+            Sitting: 3
+            Stair up: 4
+            Stair down: 5
+            Ramp up: 6
+            Ramp down: 7
+            Grass walking: 8
+            Uneven ground walking: 9
+            Carry: 10
+          input_features:
+            raw_imu:
+              num_features:
+                - 120
+                - 42
+              dtype: "float32"
+        modalities:
+          raw_imu:
+            mvn:
+              buf_len: 300
+              num_features:
+                - 42
+              dtype: "float32"
+            # pelvis:
+            #   buf_len: 300
+            #   num_features:
+            #     - 6
+            #   dtype: "float32"
+            # thigh_right:
+            #   buf_len: 300
+            #   num_features:
+            #     - 6
+            #   dtype: "float32"
+            # shank_right:
+            #   buf_len: 300
+            #   num_features:
+            #     - 6
+            #   dtype: "float32"
+            # foot_right:
+            #   buf_len: 300
+            #   num_features:
+            #     - 6
+            #   dtype: "float32"
+            # thigh_left:
+            #   buf_len: 300
+            #   num_features:
+            #     - 6
+            #   dtype: "float32"
+            # shank_left:
+            #   buf_len: 300
+            #   num_features:
+            #     - 6
+            #   dtype: "float32"
+            # foot_left:
+            #   buf_len: 300
+            #   num_features:
+            #     - 6
+            #   dtype: "float32"
+
+      stream_in_specs:
+        - package: "mvn"
+          class: "MvnAnalyzeProducer"
+          topic: "mvn"
+          settings:
+            mvn_setup           : "lower_body"
+            sampling_rate_hz    : 60
+            is_euler            : True
+            is_quaternion       : True
+            is_joint_angles     : True
+            is_linear_segments  : True
+            is_angular_segments : True
+            is_motion_trackers  : True
+            is_com              : True
+            is_time_code        : True
+
+        # - package: "revalexo.exo"
+        #   class: "ExoPipeline"
+        #   topic: "exo"
+        #   settings:
+        #     niclas:
+        #       sampling_rate_hz: 50
+        #       connection_type: "BLE"  # BLE or I2C
+        #       is_pelvis_and_feet: False
+        #       device_mapping:  # for BLE connection type
+        #         torso       : "B2:C9:23:6B:E0:C6"
+        #         thigh_right : "AC:FB:DC:C8:F1:16"
+        #         thigh_left  : "5C:3E:2C:04:28:85"
+        #         shank_right : "27:6D:73:51:55:D9"
+        #         shank_left  : "45:7B:E2:8D:B1:F6"
+        #       service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+        #       char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+        #       is_acc    : True
+        #       is_gyr    : True
+        #       is_mag    : False
+        #       is_euler  : True
+        #       is_quat   : False
+        #       is_temp   : False
+        #       is_baro   : False
+        #       is_hum    : False
+        #     motors:
+        #       is_emulate_can: False  # creates a virtual CAN bus for testing.
+        #       sampling_rate_hz: 50
+        #       device_mapping:
+        #         knee_right:
+        #           can_id: 1
+        #           type: "AK10_9"
+        #         hip_left:
+        #           can_id: 2
+        #           type: "AK80_8"
+        #         hip_right:
+        #           can_id: 3
+        #           type: "AK80_8"
+        #         knee_left:
+        #           can_id: 4
+        #           type: "AK10_9"
+        #     pmu:
+        #       id: 0x1804447D
+        #       time_threshold: 0.05
+        #       sampling_rate_hz: 50
+
+        # - package: "nicla_sense_me"
+        #   class: "NiclaSenseMeProducer"
+        #   topic: "wearable_nicla"
+        #   settings:
+        #     niclas:
+        #       sampling_rate_hz: 50
+        #       connection_type: "BLE"  # BLE or I2C
+        #       device_mapping:  # for BLE connection type
+        #         pelvis      : "BE:1C:35:65:1B:7D"
+        #         foot_right  : "DF:CA:13:E0:E1:59"
+        #         foot_left   : "CD:7E:7C:F4:4A:11"
+        #       service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+        #       char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+        #       is_acc    : True
+        #       is_gyr    : True
+        #       is_mag    : False
+        #       is_euler  : True
+        #       is_quat   : False
+        #       is_temp   : False
+        #       is_baro   : False
+        #       is_hum    : False

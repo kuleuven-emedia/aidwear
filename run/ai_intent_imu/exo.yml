@@ -1,0 +1,170 @@
+host_ip: "10.220.24.100"
+is_master_broker: True
+
+remote_subscriber_ips:
+  - "10.220.24.1"  # Jetson AI model inputs
+remote_publisher_ips:
+  - "10.220.24.1"  # Jetson AI model outputs
+connections:
+  # - ssh_username: "jetson"
+  #   ssh_host_ip: "10.220.24.1"
+  #   platform: "Linux"
+  #   config_filepath: "./run/ai_intent_imu/ai.yml"
+  #   project_dir: "~/Documents/revalexo"
+  #   output_dir: "./data"
+
+is_remote_kill: False
+remote_kill_ip: null  # HERMES Master Node
+
+
+logging_spec:
+  stream_period_s     : 30
+
+  stream_hdf5         : True
+  stream_csv          : False
+  stream_video        : False
+  stream_audio        : False
+
+  dump_csv            : False
+  dump_hdf5           : False
+  dump_video          : False
+  dump_audio          : False
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+
+producer_specs:
+  - package: "mvn"
+    class: "MvnAnalyzeProducer"
+    topic: "mvn"
+    settings:
+      mvn_setup           : "lower_body"
+      sampling_rate_hz    : 60
+      is_euler            : True
+      is_quaternion       : True
+      is_joint_angles     : True
+      is_linear_segments  : True
+      is_angular_segments : True
+      is_motion_trackers  : True
+      is_com              : True
+      is_time_code        : True
+
+  - package: "revalexo.cli"  # Used to manually trigger fatigue-based assistance changes
+    class: "CliProducer"
+    topic: "cli_control"
+    settings: {}
+
+  # - package: "revalexo.gui"  Used to trigger fatigue-based assistance changes from GUI
+  #   class: "PhoneGuiProducer"
+  #   topic: "gui_control"
+  #   settings:
+  #     phone_ip: "10.220.25.105"
+  #     phone_port: 6000
+
+
+consumer_specs: []
+
+
+pipeline_specs:
+  - package: "revalexo.exo"
+    class: "ExoPipeline"
+    topic: "exo"
+    settings:
+      stream_out_spec:
+        dt: 0.01
+        niclas:
+          sampling_rate_hz: 50
+          connection_type: "BLE"  # BLE or I2C
+          is_pelvis_and_feet: False
+          device_mapping:  # for BLE connection type
+            torso       : "B2:C9:23:6B:E0:C6"
+            thigh_right : "AC:FB:DC:C8:F1:16"
+            thigh_left  : "5C:3E:2C:04:28:85"
+            shank_right : "27:6D:73:51:55:D9"
+            shank_left  : "45:7B:E2:8D:B1:F6"
+          service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+          char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+          # device_mapping:  # for I2C connection type
+          #   torso:
+          #     address: 0x11
+          #     int_pin: 31
+          #   thigh_right:
+          #     address: 0x12
+          #     int_pin: 11
+          #   shank_right:
+          #     address: 0x13
+          #     int_pin: 13
+          #   thigh_left:
+          #     address: 0x14
+          #     int_pin: 15
+          #   shank_left:
+          #     address: 0x15
+          #     int_pin: 16
+          is_acc    : True
+          is_gyr    : True
+          is_mag    : False
+          is_euler  : True
+          is_quat   : False
+          is_temp   : False
+          is_baro   : False
+          is_hum    : False
+        motors:
+          is_emulate_can: True  # creates a virtual CAN bus for testing.
+          sampling_rate_hz: 50
+          device_mapping:
+            knee_right:
+              can_id: 1
+              type: "AK10_9"
+            hip_left:
+              can_id: 2
+              type: "AK80_8"
+            hip_right:
+              can_id: 3
+              type: "AK80_8"
+            knee_left:
+              can_id: 4
+              type: "AK10_9"
+        pmu:
+          id: 0x1804447D
+          time_threshold: 0.05
+          sampling_rate_hz: 50
+
+      stream_in_specs:
+        - package: "revalexo.ai"
+          class: "IntentClassifierPipeline"
+          topic: "ai_intent"
+          settings:
+            horizons: [0, 0.1, 0.2, 0.3, 0.5, 1]
+            classes:
+              Level ground walking: 0
+              Sit to stand: 1
+              Stand to sit: 2
+              Sitting: 3
+              Stair up: 4
+              Stair down: 5
+              Ramp up: 6
+              Ramp down: 7
+              Grass walking: 8
+              Uneven ground walking: 9
+              Carry: 10
+            in_streams:
+              - "pelvis"
+              - "thigh_right"
+              - "shank_right"
+              - "foot_right"
+              - "thigh_left"
+              - "shank_left"
+              - "foot_left"
+
+        - package: "revalexo.cli"
+          class: "CliProducer"
+          topic: "cli_control"
+          settings: {}
+
+        # - package: "revalexo.gui"
+        #   class: "PhoneGuiProducer"
+        #   topic: "gui_control"
+        #   settings:
+        #     phone_ip: "10.220.25.105"
+        #     phone_port: 6000

@@ -1,0 +1,146 @@
+host_ip : "127.0.0.1"
+is_master_broker: True
+duration_s: 60
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+
+logging_spec:
+  stream_period_s     : 10
+
+  stream_hdf5         : True
+  stream_csv          : False
+  stream_video        : False
+  stream_audio        : False
+
+  dump_csv            : False
+  dump_hdf5           : False
+  dump_video          : False
+  dump_audio          : False
+
+video_codec_config_filepath : null
+audio_codec_config_filepath : null
+
+
+producer_specs:
+  - package: "nicla_sense_me"
+    class: "NiclaSenseMeProducer"
+    topic: "wearable_nicla"
+    settings:
+      niclas:
+        sampling_rate_hz: 50
+        connection_type: "BLE"  # BLE or I2C
+        device_mapping:  # for BLE connection type
+          pelvis      : "BE:1C:35:65:1B:7D"
+          foot_right  : "DF:CA:13:E0:E1:59"
+          foot_left   : "CD:7E:7C:F4:4A:11"
+        service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+        char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+        is_acc    : True
+        is_gyr    : True
+        is_mag    : False
+        is_euler  : True
+        is_quat   : False
+        is_temp   : False
+        is_baro   : False
+        is_hum    : False
+
+
+consumer_specs: []
+
+
+pipeline_specs:
+  - package: "revalexo.ai"
+    class: "IntentClassifierPipeline"
+    topic: "ai_intent"
+    settings:
+      stream_out_spec:
+        config_path: "hermes/revalexo/ai/utils/configs/dcl_acc_gyro.yml"
+        device: "cuda"
+        gravity_scaling_factor: 4
+        gyroscope_scaling_factor: 1000
+        module_params:
+          prediction_horizons: [0, 0.1, 0.2, 0.3, 0.5, 1]
+          output_classes:
+            Level ground walking: 0
+            Sit to stand: 1
+            Stand to sit: 2
+            Sitting: 3
+            Stair up: 4
+            Stair down: 5
+            Ramp up: 6
+            Ramp down: 7
+            Grass walking: 8
+            Uneven ground walking: 9
+            Carry: 10
+          input_features:
+            raw_imu:
+              num_features:
+                - 120
+                - 42
+              dtype: "float32"
+        modalities:
+          raw_imu:
+            pelvis:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            foot_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            foot_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+
+      stream_in_specs:
+        - package: "nicla_sense_me"
+          class: "NiclaSenseMeProducer"
+          topic: "wearable_nicla"
+          settings:
+            niclas:
+              sampling_rate_hz: 50
+              connection_type: "BLE"  # BLE or I2C
+              device_mapping:  # for BLE connection type
+                pelvis      : "BE:1C:35:65:1B:7D"
+                foot_right  : "DF:CA:13:E0:E1:59"
+                foot_left   : "CD:7E:7C:F4:4A:11"
+              service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+              char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+              is_acc    : True
+              is_gyr    : True
+              is_mag    : False
+              is_euler  : True
+              is_quat   : False
+              is_temp   : False
+              is_baro   : False
+              is_hum    : False

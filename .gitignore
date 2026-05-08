@@ -6,12 +6,15 @@ __pycache__
 
 .vscode/*
 !.vscode/launch.json
+.ruff_cache/
 
 # Virtual environments
 .venv*/
 
 # Recorded data
 data/
+trial_auto_id.txt
+*.csv
 
 # Site data
 site/
@@ -20,3 +23,6 @@ site/
 dist/
 *.egg-info/
 build/
+
+# Model weights
+weights/

@@ -1,0 +1,28 @@
+# ResNet-18 — Image only (single frame from video)
+
+prediction_horizons: [0, 0.1, 0.2, 0.3, 0.5, 1]
+
+checkpoint: "../weights/resnet18.pt"
+
+modalities:
+  image:
+    receptive_field: 1
+    eval_transforms:
+      - name: "NormalizeImage"
+        params:
+          mean: [0.485, 0.456, 0.406]
+          std: [0.229, 0.224, 0.225]
+      - name: "ResizeImage"
+        params:
+          size: 256
+      - name: "CenterCropImage"
+        params:
+          size: 224
+
+models:
+  image:
+    name: "ResNet18_Image"
+    params:
+      pretrained: false
+      freeze_backbone: false
+      freeze_early_layers: false

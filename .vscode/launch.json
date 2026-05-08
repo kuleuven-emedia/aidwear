@@ -5,22 +5,123 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "AidWear",
+            "name": "Run Prosthesis w/ CLI",
             "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "main.py",
+            "program": "run/main.py",
             "args": [
-                "--out_dir", "data",
-                "--experiment", "project=AidWear", "trial=0",
-                "--config_file", "prosthesis.yml"
+                "-o", "data",
+                "-f", "run/prosthesis_standalone_cli/prosthesis.yml",
+                "-e", "project=AidwearStandaloneCli", "type=Test", "trial=0",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
+        {
+            "name": "Run Prosthesis w/ GUI",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "run/main.py",
+            "args": [
+                "-o", "data",
+                "-f", "run/prosthesis_standalone_gui/prosthesis.yml",
+                "-e", "project=AidwearStandaloneGui", "type=Test", "trial=0",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
+        {
+            "name": "Run Prosthesis w/ AI",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "run/main.py",
+            "args": [
+                "-o", "data",
+                "-f", "run/ai_intent_imu/exo.yml",
+                "-e", "project=AidwearAiIntentImu", "type=Test", "trial=2",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
+        {
+            "name": "Run AI Companion",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "run/main.py",
+            "args": [
+                "-o", "data",
+                "-f", "run/ai_intent_imu/ai.yml",
+                "-e", "project=AidwearAiIntentImu", "type=Test", "trial=0",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
+        {
+            "name": "Test IMU AI",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "run/main.py",
+            "args": [
+                "-o", "data",
+                "-f", "run/ai_test/test_intent_imu.yml",
+                "-e", "project=AidwearTestAiImu", "type=Test", "trial=0",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
+        {
+            "name": "Test Ego AI Image",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "run/main.py",
+            "args": [
+                "-o", "data",
+                "-f", "run/ai_test/test_intent_imu_img.yml",
+                "-e", "project=AidwearTestAiEgoImg", "type=Test", "trial=0",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
+        {
+            "name": "Test Ego AI Video",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "run/main.py",
+            "args": [
+                "-o", "data",
+                "-f", "run/ai_test/test_intent_imu_vid.yml",
+                "-e", "project=AidwearTestAiEgoVid", "type=Test", "trial=0",
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"

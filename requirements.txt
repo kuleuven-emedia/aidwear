@@ -1,9 +1,0 @@
-pysio-hermes
-python-statemachine
-bleak
-python-can
-scipy
-numpy
-gpiod
-matplotlib
-paho-mqtt
