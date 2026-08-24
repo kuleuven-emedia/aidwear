@@ -161,6 +161,10 @@ class StateEnum:
         SWING = 11
         STANCE = 12
 
+    class Hurdle(Enum):
+        IDLE = 13
+        WALKING = 14
+
 
 @dataclass
 class StateTransition:
@@ -214,6 +218,7 @@ class ModeEnum(Enum):
     SIT_TO_STAND = ModeTuple(id=2, text="sit_to_stand")
     STAIR_ASCENT = ModeTuple(id=3, text="stair_ascent")
     STAIR_DESCENT = ModeTuple(id=4, text="stair_descent")
+    HURDLE = ModeTuple(id=5, text="hurdle")
 
 
 CLASS_TO_MODE = {
@@ -357,7 +362,5 @@ class WalkingParameters:
 
 @dataclass
 class ExoMotorMapping:
-    hip_right: str
-    hip_left: str
-    knee_right: str
-    knee_left: str
+    ankle: str
+    knee: str

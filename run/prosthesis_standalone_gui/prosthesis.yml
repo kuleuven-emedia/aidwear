@@ -39,8 +39,8 @@ consumer_specs: []
 
 
 pipeline_specs:
-  - package: "revalexo.exo"
-    class: "ExoPipeline"
+  - package: "aidwear.prosthesis"
+    class: "ProsthesisPipeline"
     topic: "prosthesis"
     settings:
       stream_out_spec:
@@ -50,11 +50,11 @@ pipeline_specs:
           connection_type: "BLE"  # BLE or I2C
           is_pelvis_and_feet: False
           device_mapping:  # for BLE connection type
-            torso       : "B2:C9:23:6B:E0:C6"
-            thigh_right : "AC:FB:DC:C8:F1:16"
-            thigh_left  : "5C:3E:2C:04:28:85"
-            shank_right : "27:6D:73:51:55:D9"
-            shank_left  : "45:7B:E2:8D:B1:F6"
+            torso       : "D8:4E:18:CC:F6:62"
+            thigh_right : "4D:8B:11:D5:F2:46"
+            thigh_left  : "A3:2F:AF:84:4E:1D"
+            shank_right : "96:CD:19:11:5B:F7"
+            shank_left  : "D5:A0:BA:27:CA:09"
           service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
           char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
           # device_mapping:  # for I2C connection type

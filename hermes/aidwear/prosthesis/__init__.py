@@ -1,2 +1,2 @@
-from .stream import ProsthesisStream
+from .data_container import ProsthesisDataContainer
 from .pipeline import ProsthesisPipeline

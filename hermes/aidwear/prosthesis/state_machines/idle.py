@@ -41,34 +41,7 @@ class Idle(StateMachine, ProsthesisStateMachine):
 
     # Actions.
     def on_enter_idle(self):
-        can_set_torque(
-            bus=self._bus,
-            controller_id=1,
-            torque=0.0,
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-        )
-        can_set_torque(
-            bus=self._bus,
-            controller_id=4,
-            torque=0.0,
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-        )
-        can_set_torque(
-            bus=self._bus,
-            controller_id=2,
-            torque=0.0,
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-        )
-        can_set_torque(
-            bus=self._bus,
-            controller_id=3,
-            torque=0.0,
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-        )
+        pass
 
     def update_sensor_values(
         self,

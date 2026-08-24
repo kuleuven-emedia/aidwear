@@ -117,14 +117,15 @@ def send_can_message(
         motor_id (`int`): The CAN ID of the motor to send to.
         data (`list[int | bytes]`): An array of integers or bytes of data to send.
     """
-    message = can.Message(arbitration_id=motor_id, data=data, is_extended_id=True)
+    # message = can.Message(arbitration_id=motor_id, data=data, is_extended_id=True)
 
     try:
-        bus.send(message)
+        # bus.send(message)
         if motor_command_queue is not None:
             motor_command_queue.put(
                 MotorCommand(
-                    motor_id=(motor_id & 0xFF),
+                    # motor_id=(motor_id & 0xFF),
+                    motor_id=0,
                     timestamp=get_time(),
                     data=data,
                     control_mode=(motor_id >> 8),

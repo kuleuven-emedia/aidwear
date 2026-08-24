@@ -11,6 +11,7 @@ from collections import defaultdict
 from functools import partial
 from queue import Queue
 import queue
+import numpy as np
 from typing import Callable
 
 from hermes.utils.time_utils import get_time
@@ -21,13 +22,13 @@ from hermes.base.nodes.producer import Producer
 
 from hermes.aidwear.prosthesis.utils.types import ModeEnum
 
-from .stream import CliStream
+from .data_container import CliDataContainer
 
 
 class CliProducer(Producer):
     def __init__(
         self,
-        topic: str,
+        node_id: str,
         host_ip: str,
         logging_spec: LoggingSpec,
         port_pub: str = PORT_BACKEND,
@@ -46,45 +47,12 @@ class CliProducer(Producer):
         ) -> None:
             print(f"User selected transition to: {mode.value.text}", flush=True)
             self._publish(
-                "%s.data" % self.topic,
                 process_time_s=process_time_s,
-                data={
+                new_data={
                     "intent": {
-                        "toa_s": toa_s,
-                        "mode": mode.value.id,
-                        "sequence_id": sequence_id,
-                    }
-                },
-            )
-
-        def fatigue_callback(
-            fatigue: float, toa_s: float, process_time_s: float, sequence_id: int
-        ) -> None:
-            print(f"User set assistance to: {fatigue}", flush=True)
-            self._publish(
-                "%s.data" % self.topic,
-                process_time_s=process_time_s,
-                data={
-                    "fatigue": {
-                        "toa_s": toa_s,
-                        "level": fatigue,
-                        "sequence_id": sequence_id,
-                    }
-                },
-            )
-
-        def event_callback(
-            toa_s: float, process_time_s: float, sequence_id: int
-        ) -> None:
-            print(f"User marked event", flush=True)
-            self._publish(
-                "%s.data" % self.topic,
-                process_time_s=process_time_s,
-                data={
-                    "event": {
-                        "toa_s": toa_s,
-                        "mark": 1,
-                        "sequence_id": sequence_id,
+                        "toa_s": np.array([[toa_s]], dtype=np.float64),
+                        "mode": np.array([[mode.value.id]], dtype=np.uint8),
+                        "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
                     }
                 },
             )
@@ -94,13 +62,12 @@ class CliProducer(Producer):
         ) -> None:
             print(f"Safety stop triggered", flush=True)
             self._publish(
-                "%s.data" % self.topic,
                 process_time_s=process_time_s,
-                data={
+                new_data={
                     "safety_stop": {
-                        "toa_s": toa_s,
-                        "is_pause": is_pause,
-                        "sequence_id": sequence_id,
+                        "toa_s": np.array([[toa_s]], dtype=np.float64),
+                        "is_pause": np.array([[is_pause]], dtype=np.bool),
+                        "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
                     }
                 },
             )
@@ -113,18 +80,14 @@ class CliProducer(Producer):
                 intent_callback, mode
             )
 
-        self._fatigue_keyboard_mapper = fatigue_callback
-
-        self._event_keyboard_mapper = event_callback
-
         self._safety_stop_keyboard_mapper = safety_stop_callback
 
-        stream_out_spec = {}
+        data_out_spec = {}
 
         super().__init__(
-            topic=topic,
+            node_id=node_id,
             host_ip=host_ip,
-            stream_out_spec=stream_out_spec,
+            data_out_spec=data_out_spec,
             logging_spec=logging_spec,
             port_pub=port_pub,
             port_sync=port_sync,
@@ -132,8 +95,8 @@ class CliProducer(Producer):
         )
 
     @classmethod
-    def create_stream(cls, stream_spec: dict) -> CliStream:
-        return CliStream(**stream_spec)
+    def create_data_container(cls, stream_spec: dict) -> CliDataContainer:
+        return CliDataContainer(**stream_spec)
 
     def _ping_device(self) -> None:
         return None
@@ -149,23 +112,7 @@ class CliProducer(Producer):
             try:
                 toa_s, user_input = self._input_queue.get(timeout=5)
                 process_time_s = get_time()
-                if user_input[0] == "%":
-                    user_lvl: int = int(user_input[1:])
-                    fatigue: float = (
-                        user_lvl
-                        if 0 <= user_lvl <= 100
-                        else (100 if user_lvl > 100 else 0)
-                    )
-                    self._fatigue_keyboard_mapper(
-                        fatigue, toa_s, process_time_s, self._fatigue_sequence_id
-                    )
-                    self._fatigue_sequence_id += 1
-                elif user_input[0] == "e":
-                    self._event_keyboard_mapper(
-                        toa_s, process_time_s, self._event_sequence_id
-                    )
-                    self._event_sequence_id += 1
-                elif user_input[0] == "s":
+                if user_input[0] == "s":
                     self._is_pause = not self._is_pause
                     self._safety_stop_keyboard_mapper(
                         toa_s, self._is_pause, process_time_s, self._event_sequence_id

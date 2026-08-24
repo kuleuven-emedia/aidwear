@@ -16,6 +16,7 @@ from ..state_machines import (
     ProsthesisStateMachine,
     Idle,
     Walking,
+    Hurdle,
     SitToStand,
     StairAscent,
     StairDescent,
@@ -65,49 +66,31 @@ class ModeSelectionMachine(StateMachine):
         name=ModeEnum.STAIR_DESCENT.value.text,
         value=ModeEnum.STAIR_DESCENT.value.id,
     )
+    hurdle = State(
+        name=ModeEnum.HURDLE.value.text,
+        value=ModeEnum.HURDLE.value.id,
+    )
 
+    allow_event_without_transition: bool = True
     _exo_mode: ProsthesisStateMachine
     _sequence_id: int
 
     # From any to `idle`.
-    to_idle = (
-        walking.to(idle, cond="is_safe_walking_to_idle")
-        | sit_to_stand.to(idle, cond="is_safe_sit_to_stand_to_idle")
-        | stair_ascent.to(idle, cond="is_safe_stair_ascent_to_idle")
-        | stair_descent.to(idle, cond="is_safe_stair_descent_to_idle")
-    )
+    to_idle = idle.from_.any()
+
+    to_hurdle = hurdle.from_.any()
 
     # From any to `walking`.
-    to_walking = (
-        idle.to(walking, cond="is_safe_idle_to_walking")
-        | sit_to_stand.to(walking, cond="is_safe_sit_to_stand_to_walking")
-        | stair_ascent.to(walking, cond="is_safe_stair_ascent_to_walking")
-        | stair_descent.to(walking, cond="is_safe_stair_descent_to_walking")
-    )
+    to_walking = walking.from_.any()
 
     # From any to `sit_to_stand`.
-    to_sit_to_stand = (
-        idle.to(sit_to_stand, cond="is_safe_idle_to_sit_to_stand")
-        | walking.to(sit_to_stand, cond="is_safe_walking_to_sit_to_stand")
-        | stair_ascent.to(sit_to_stand, cond="is_safe_stair_ascent_to_sit_to_stand")
-        | stair_descent.to(sit_to_stand, cond="is_safe_stair_descent_to_sit_to_stand")
-    )
+    to_sit_to_stand = sit_to_stand.from_.any()
 
     # From any to `stair_ascent`.
-    to_stair_ascent = (
-        idle.to(stair_ascent, cond="is_safe_idle_to_stair_ascent")
-        | walking.to(stair_ascent, cond="is_safe_walking_to_stair_ascent")
-        | sit_to_stand.to(stair_ascent, cond="is_safe_sit_to_stand_to_stair_ascent")
-        | stair_descent.to(stair_ascent, cond="is_safe_stair_descent_to_stair_ascent")
-    )
+    to_stair_ascent = stair_ascent.from_.any()
 
     # From any to `stair_descent`.
-    to_stair_descent = (
-        idle.to(stair_descent, cond="is_safe_idle_to_stair_descent")
-        | walking.to(stair_descent, cond="is_safe_walking_to_stair_descent")
-        | sit_to_stand.to(stair_descent, cond="is_safe_sit_to_stand_to_stair_descent")
-        | stair_ascent.to(stair_descent, cond="is_safe_stair_ascent_to_stair_descent")
-    )
+    to_stair_descent = stair_descent.from_.any()
 
     def __init__(self, ctx: ModeContext):
         self._ctx = ctx
@@ -187,6 +170,9 @@ class ModeSelectionMachine(StateMachine):
     # Transition callbacks.
     def on_enter_idle(self):
         self._exo_mode = Idle(self._ctx)
+
+    def on_enter_hurdle(self):
+        self._exo_mode = Hurdle(self._ctx)
 
     def on_exit_idle(self):
         pass

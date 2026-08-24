@@ -29,7 +29,7 @@ audio_codec_config_filepath : null
 producer_specs:
   - package: "aidwear.cli"
     class: "CliProducer"
-    topic: "cli_control"
+    node_id: "cli_control"
     settings: {}
 
 
@@ -37,40 +37,25 @@ consumer_specs: []
 
 
 pipeline_specs:
-  - package: "aidwear.exo"
-    class: "ExoPipeline"
-    topic: "prosthesis"
+  - package: "aidwear.prosthesis"
+    class: "ProsthesisPipeline"
+    node_id: "prosthesis"
     settings:
-      stream_out_spec:
+      data_out_spec:
         dt: 0.01
         niclas:
+          buf_len: 3000
           sampling_rate_hz: 50
           connection_type: "BLE"  # BLE or I2C
           is_pelvis_and_feet: False
           device_mapping:  # for BLE connection type
-            torso       : "B2:C9:23:6B:E0:C6"
-            thigh_right : "AC:FB:DC:C8:F1:16"
-            thigh_left  : "5C:3E:2C:04:28:85"
-            shank_right : "27:6D:73:51:55:D9"
-            shank_left  : "45:7B:E2:8D:B1:F6"
+            torso       : "D8:4E:18:CC:F6:62"
+            thigh_right : "4D:8B:11:D5:F2:46"
+            thigh_left  : "A3:2F:AF:84:4E:1D"
+            shank_right : "96:CD:19:11:5B:F7"
+            shank_left  : "D5:A0:BA:27:CA:09"
           service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
           char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
-          # device_mapping:  # for I2C connection type
-          #   torso:
-          #     address: 0x11
-          #     int_pin: 31
-          #   thigh_right:
-          #     address: 0x12
-          #     int_pin: 11
-          #   shank_right:
-          #     address: 0x13
-          #     int_pin: 13
-          #   thigh_left:
-          #     address: 0x14
-          #     int_pin: 15
-          #   shank_left:
-          #     address: 0x15
-          #     int_pin: 16
           is_acc    : True
           is_gyr    : True
           is_mag    : False
@@ -81,27 +66,25 @@ pipeline_specs:
           is_hum    : False
         motors:
           is_emulate_can: True  # creates a virtual CAN bus for testing.
+          buf_len: 3000
           sampling_rate_hz: 50
           device_mapping:
-            knee_right:
+            knee:
               can_id: 1
               type: "AK10_9"
-            hip_left:
+            ankle:
               can_id: 2
               type: "AK80_8"
-            hip_right:
-              can_id: 3
-              type: "AK80_8"
-            knee_left:
-              can_id: 4
-              type: "AK10_9"
-        pmu:
-          id: 0x1804447D
-          time_threshold: 0.05
-          sampling_rate_hz: 50
+        telemetry:
+          buf_len: 100000
 
-      stream_in_specs:
+
+      data_in_specs:
         - package: "aidwear.cli"
           class: "CliProducer"
-          topic: "cli_control"
-          settings: {}
+          node_id: "cli_control"
+          topics:
+            - "intent"
+            - "safety_stop"
+          settings:
+            buf_len: 1000

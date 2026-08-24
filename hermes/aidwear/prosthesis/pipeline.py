@@ -24,7 +24,7 @@ from hermes.utils.zmq_utils import (
 )
 
 from .controller import ProsthesisHandler
-from .stream import ProsthesisStream
+from .data_container import ProsthesisDataContainer
 from .utils.types import (
     CLASS_TO_MODE,
     BatteryData,
@@ -44,10 +44,10 @@ from ..utils.types import (
 class ProsthesisPipeline(Pipeline):
     def __init__(
         self,
-        topic: str,
+        node_id: str,
         host_ip: str,
-        stream_out_spec: dict,
-        stream_in_specs: list[dict],
+        data_out_spec: dict,
+        data_in_specs: list[dict],
         logging_spec: LoggingSpec,
         port_pub: str = PORT_BACKEND,
         port_sub: str = PORT_FRONTEND,
@@ -55,10 +55,10 @@ class ProsthesisPipeline(Pipeline):
         port_killsig: str = PORT_KILL,
         **_,
     ):
-        niclas: dict = stream_out_spec["niclas"]
-        motors: dict = stream_out_spec["motors"]
-        pmu: dict = stream_out_spec["pmu"]
-        dt: float = stream_out_spec["dt"]
+        niclas: dict = data_out_spec["niclas"]
+        motors: dict = data_out_spec["motors"]
+        telemetry: dict = data_out_spec["telemetry"]
+        dt: float = data_out_spec["dt"]
 
         self._motor_mapping: dict[str, dict] = motors["device_mapping"]
         # Filter out AI-only Niclas if running exo without the AI and validate input mapping.
@@ -150,7 +150,6 @@ class ProsthesisPipeline(Pipeline):
             kwargs={
                 "niclas": niclas,
                 "motors": motors,
-                "pmu": pmu,
                 **telemetry_kwargs,
                 **ai_kwargs,
                 **hermes_kwargs,
@@ -160,17 +159,17 @@ class ProsthesisPipeline(Pipeline):
         self._handler_proc.start()
         self._is_ready_event.wait()
 
-        stream_out_spec = {
+        data_out_spec = {
             "niclas": niclas,
             "motors": motors,
-            "pmu": pmu,
+            "telemetry": telemetry,
         }
 
         super().__init__(
-            topic=topic,
+            node_id=node_id,
             host_ip=host_ip,
-            stream_out_spec=stream_out_spec,
-            stream_in_specs=stream_in_specs,
+            data_out_spec=data_out_spec,
+            data_in_specs=data_in_specs,
             logging_spec=logging_spec,
             is_async_generate=True,
             port_pub=port_pub,
@@ -180,38 +179,33 @@ class ProsthesisPipeline(Pipeline):
         )
 
     @classmethod
-    def create_stream(cls, stream_spec: dict) -> ProsthesisStream:
-        return ProsthesisStream(**stream_spec)
+    def create_data_container(cls, stream_spec: dict) -> ProsthesisDataContainer:
+        return ProsthesisDataContainer(**stream_spec)
 
     def _keep_samples(self) -> None:
         self._is_keep_data_event.set()
 
     def _process_data(self, topic: str, msg: dict) -> None:
         if topic in ["cli_control", "gui_control"]:
-            if "intent" in msg["data"]:
+            if "intent" in msg:
                 # Passes to the top-level exo module the next state to choose internally when to switch to.
                 # NOTE: AI component will provide `int` matching one of the ModeEnum values.
-                self._next_mode.value = msg["data"]["intent"]["mode"]
-                self._next_mode_sequence_id.value = msg["data"]["intent"]["sequence_id"]
-            elif "fatigue" in msg["data"]:
+                self._next_mode.value = msg["intent"]["mode"].item()
+                self._next_mode_sequence_id.value = msg["intent"]["sequence_id"].item()
+            elif "fatigue" in msg:
                 # Passes to the top-level exo module the next fatigue percentage to choose internally to scale torques.
                 # NOTE: AI component will provide `float` in range [0, 100].
-                self._next_fatigue.value = msg["data"]["fatigue"]["level"]
-                self._next_fatigue_sequence_id.value = msg["data"]["fatigue"]["sequence_id"]
-            elif "safety_stop" in msg["data"]:
-                self._next_is_pause.value = msg["data"]["safety_stop"]["is_pause"]                    
-                self._next_is_pause_sequence_id.value = msg["data"]["safety_stop"]["sequence_id"]
+                self._next_fatigue.value = msg["fatigue"]["level"].item()
+                self._next_fatigue_sequence_id.value = msg["fatigue"]["sequence_id"].item()
+            elif "safety_stop" in msg:
+                self._next_is_pause.value = msg["safety_stop"]["is_pause"].item()
+                self._next_is_pause_sequence_id.value = msg["safety_stop"]["sequence_id"].item()
         elif topic == "ai_intent":
-            prediction: int = msg["data"]["classifier"]["predictions"][0].item()
+            prediction: int = msg["classifier"]["predictions"][0].item()
             self._next_mode.value = CLASS_TO_MODE[prediction].value.id
-            self._next_mode_sequence_id.value = msg["data"]["classifier"]["sequence_id"]
+            self._next_mode_sequence_id.value = msg["classifier"]["sequence_id"].item()
 
     def _generate_data(self) -> None:
-        # Pass internally generated data to the middleware.
-        process_time_s = get_time()
-        tag: str = "%s.data" % self.topic
-        output = {}
-
         # Motor data.
         motor_data: dict[str, tuple[str, list[ServoMotorData]]] = {
             motor_spec["can_id"]: (motor_name, [])
@@ -222,56 +216,60 @@ class ProsthesisPipeline(Pipeline):
             motor_data[can_id][1].append(motor_sample)
         for motor_name, data in motor_data.values():
             if data:
-                output[f"motor_{motor_name}"] = {
-                    "timestamp": np.array(
-                        [list(map(lambda m: m.timestamp, data))], dtype=np.float64
-                    ).transpose((1, 0)),
-                    "position": np.array(
-                        [list(map(lambda m: m.position, data))], dtype=np.float32
-                    ).transpose((1, 0)),
-                    "velocity": np.array(
-                        [list(map(lambda m: m.velocity, data))], dtype=np.float32
-                    ).transpose((1, 0)),
-                    "current": np.array(
-                        [list(map(lambda m: m.current, data))], dtype=np.float32
-                    ).transpose((1, 0)),
-                    "temperature": np.array(
-                        [list(map(lambda m: m.temperature, data))], dtype=np.int8
-                    ).transpose((1, 0)),
-                    "error": np.array(
-                        [list(map(lambda m: m.error, data))], dtype=np.uint8
-                    ).transpose((1, 0)),
-                    "count": len(data),
+                output = {
+                    f"motor_{motor_name}": {
+                        "toa_s": np.array(
+                            [list(map(lambda m: m.timestamp, data))], dtype=np.float64
+                        ).transpose((1, 0)),
+                        "position": np.array(
+                            [list(map(lambda m: m.position, data))], dtype=np.float32
+                        ).transpose((1, 0)),
+                        "velocity": np.array(
+                            [list(map(lambda m: m.velocity, data))], dtype=np.float32
+                        ).transpose((1, 0)),
+                        "current": np.array(
+                            [list(map(lambda m: m.current, data))], dtype=np.float32
+                        ).transpose((1, 0)),
+                        "temperature": np.array(
+                            [list(map(lambda m: m.temperature, data))], dtype=np.int8
+                        ).transpose((1, 0)),
+                        "error": np.array(
+                            [list(map(lambda m: m.error, data))], dtype=np.uint8
+                        ).transpose((1, 0)),
+                    }
                 }
+                self._publish(process_time_s=get_time(), new_data=output)
 
         # Battery data.
         battery_data: list[BatteryData] = []
         while not self._battery_data_queue.empty():
             battery_data.append(self._battery_data_queue.get_nowait())
         if battery_data:
-            output["power_monitor"] = {
-                "timestamp": np.array(
-                    [list(map(lambda m: m.timestamp, battery_data))],
-                    dtype=np.float64,
-                ).transpose((1, 0)),
-                "temperature": np.array(
-                    [list(map(lambda m: m.temperature, battery_data))],
-                    dtype=np.float32,
-                ).transpose((1, 0)),
-                "voltage": np.array(
-                    [list(map(lambda m: m.voltage, battery_data))],
-                    dtype=np.float32,
-                ).transpose((1, 0)),
-                "current": np.array(
-                    [list(map(lambda m: m.current, battery_data))],
-                    dtype=np.float32,
-                ).transpose((1, 0)),
-                "power": np.array(
-                    [list(map(lambda m: m.power, battery_data))],
-                    dtype=np.float32,
-                ).transpose((1, 0)),
-                "count": len(battery_data),
+            output = {
+                "power_monitor": {
+                    "toa_s": np.array(
+                        [list(map(lambda m: m.timestamp, battery_data))],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "temperature": np.array(
+                        [list(map(lambda m: m.temperature, battery_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                    "voltage": np.array(
+                        [list(map(lambda m: m.voltage, battery_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                    "current": np.array(
+                        [list(map(lambda m: m.current, battery_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                    "power": np.array(
+                        [list(map(lambda m: m.power, battery_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                }
             }
+            self._publish(process_time_s=get_time(), new_data=output)
 
         # Nicla data.
         nicla_data: dict[str, list[NiclaData]] = {
@@ -286,102 +284,110 @@ class ProsthesisPipeline(Pipeline):
             nicla_data[nicla_name].append(nicla_sample)
         for nicla_name, data in nicla_data.items():
             if data:
-                output[f"nicla_{nicla_name}"] = {
-                    "toa_s": np.array(
-                        [nicla_toa[nicla_name]], dtype=np.float64
-                    ).transpose((1, 0)),
-                    "sequence_id": np.array(
-                        [list(map(lambda n: n.sequence_id, data))], dtype=np.uint32
-                    ).transpose((1, 0)),
-                    "timestamp": np.array(
-                        [list(map(lambda n: n.timestamp, data))], dtype=np.uint32
-                    ).transpose((1, 0)),
-                    "count": len(data),
+                output = {
+                    f"nicla_{nicla_name}": {
+                        "toa_s": np.array(
+                            [nicla_toa[nicla_name]], dtype=np.float64
+                        ).transpose((1, 0)),
+                        "sequence_id": np.array(
+                            [list(map(lambda n: n.sequence_id, data))], dtype=np.uint32
+                        ).transpose((1, 0)),
+                        "timestamp": np.array(
+                            [list(map(lambda n: n.timestamp, data))], dtype=np.uint32
+                        ).transpose((1, 0)),
+                    }
                 }
                 for (
                     data_name,
                     data_getter,
                 ) in self._nicla_payload_mode.get_data_getters().items():
                     output[f"nicla_{nicla_name}"][data_name] = data_getter(data)
+                self._publish(process_time_s=get_time(), new_data=output)
 
         # Motor command data.
-        motor_command_data: dict[str, tuple[str, list[MotorCommand]]] = {
-            motor_spec["can_id"]: (motor_name, [])
-            for motor_name, motor_spec in self._motor_mapping.items()
-        }
-        while not self._motor_command_queue.empty():
-            motor_command = self._motor_command_queue.get_nowait()
-            motor_command_data[motor_command.motor_id][1].append(motor_command)
-        for motor_name, data in motor_command_data.values():
-            if data:
-                output[f"command_{motor_name}"] = {
-                    "timestamp": np.array(
-                        [list(map(lambda m: m.timestamp, data))], dtype=np.float64
-                    ).transpose((1, 0)),
-                    "data": np.array(
-                        [list(map(lambda m: bytes(m.data), data))]
-                    ).transpose((1, 0)),
-                    "control_mode": np.array(
-                        [list(map(lambda m: m.control_mode, data))], dtype=np.uint8
-                    ).transpose((1, 0)),
-                    "count": len(data),
-                }
+        # motor_command_data: dict[str, tuple[str, list[MotorCommand]]] = {
+        #     motor_spec["can_id"]: (motor_name, [])
+        #     for motor_name, motor_spec in self._motor_mapping.items()
+        # }
+        # while not self._motor_command_queue.empty():
+        #     motor_command = self._motor_command_queue.get_nowait()
+        #     motor_command_data[motor_command.motor_id][1].append(motor_command)
+        # for motor_name, data in motor_command_data.values():
+        #     if data:
+        #         output = {
+        #             f"command_{motor_name}": {
+        #                 "toa_s": np.array(
+        #                     [list(map(lambda m: m.timestamp, data))], dtype=np.float64
+        #                 ).transpose((1, 0)),
+        #                 "data": np.array(
+        #                     [list(map(lambda m: bytes(m.data), data))]
+        #                 ).transpose((1, 0)),
+        #                 "control_mode": np.array(
+        #                     [list(map(lambda m: m.control_mode, data))], dtype=np.uint8
+        #                 ).transpose((1, 0)),
+        #             }
+        #         }
+        #         self._publish(process_time_s=get_time(), new_data=output)
 
         # Locomotion mode.
         mode_transitions: list[ModeTransition] = []
         while not self._mode_changed_queue.empty():
             mode_transitions.append(self._mode_changed_queue.get_nowait())
         if mode_transitions:
-            output["mode"] = {
-                "timestamp": np.array(
-                    [list(map(lambda m: m.timestamp, mode_transitions))],
-                    dtype=np.float64,
-                ).transpose((1, 0)),
-                "mode": np.array(
-                    [list(map(lambda m: m.mode, mode_transitions))], dtype=np.uint8
-                ).transpose((1, 0)),
-                "sequence_id": np.array(
-                    [list(map(lambda m: m.sequence_id, mode_transitions))],
-                    dtype=np.uint32,
-                ).transpose((1, 0)),
-                "count": len(mode_transitions),
+            output = {
+                "mode": {
+                    "toa_s": np.array(
+                        [list(map(lambda m: m.timestamp, mode_transitions))],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "mode": np.array(
+                        [list(map(lambda m: m.mode, mode_transitions))], dtype=np.uint8
+                    ).transpose((1, 0)),
+                    "sequence_id": np.array(
+                        [list(map(lambda m: m.sequence_id, mode_transitions))],
+                        dtype=np.uint32,
+                    ).transpose((1, 0)),
+                }
             }
+            self._publish(process_time_s=get_time(), new_data=output)
 
         # Mid-level state.
         state_transitions: list[StateTransition] = []
         while not self._state_changed_queue.empty():
             state_transitions.append(self._state_changed_queue.get_nowait())
         if state_transitions:
-            output["state"] = {
-                "timestamp": np.array(
-                    [list(map(lambda s: s.timestamp, state_transitions))],
-                    dtype=np.float64,
-                ).transpose((1, 0)),
-                "state": np.array(
-                    [list(map(lambda s: s.state, state_transitions))], dtype=np.uint8
-                ).transpose((1, 0)),
-                "count": len(state_transitions),
+            output = {
+                "state": {
+                    "toa_s": np.array(
+                        [list(map(lambda s: s.timestamp, state_transitions))],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "state": np.array(
+                        [list(map(lambda s: s.state, state_transitions))], dtype=np.uint8
+                    ).transpose((1, 0)),
+                }
             }
+            self._publish(process_time_s=get_time(), new_data=output)
 
         # Gait cycle phase.
         phase_estimates: list[PhaseEstimate] = []
         while not self._phase_estimate_queue.empty():
             phase_estimates.append(self._phase_estimate_queue.get_nowait())
         if phase_estimates:
-            output["phase"] = {
-                "timestamp": np.array(
-                    [list(map(lambda p: p.timestamp, phase_estimates))],
-                    dtype=np.float64,
-                ).transpose((1, 0)),
-                "phase": np.array(
-                    [list(map(lambda p: p.phase, phase_estimates))], dtype=np.float32
-                ).transpose((1, 0)),
-                "count": len(phase_estimates),
+            output = {
+                "phase": {
+                    "toa_s": np.array(
+                        [list(map(lambda p: p.timestamp, phase_estimates))],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "phase": np.array(
+                        [list(map(lambda p: p.phase, phase_estimates))], dtype=np.float32
+                    ).transpose((1, 0)),
+                }
             }
+            self._publish(process_time_s=get_time(), new_data=output)
 
-        if output:
-            self._publish(tag, process_time_s=process_time_s, data=output)
-        elif (
+        if (
             self._is_finished_event.is_set()
             and self._motor_data_queue.empty()
             and self._nicla_data_queue.empty()

@@ -28,10 +28,10 @@ from ..utils.types import (
 )
 
 
-class Walking(StateMachine, ProsthesisStateMachine):
+class Hurdle(StateMachine, ProsthesisStateMachine):
     # States.
     idle = State(
-        value=StateEnum.Walking.IDLE.value,
+        value=StateEnum.Hurdle.IDLE.value,
         initial=True
     )
     walking = State(
@@ -109,7 +109,7 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self.cycles = 0
         self.prev_raw = 0.0
 
-        super(Walking, self).__init__()
+        super(Hurdle, self).__init__()
 
     # Post-transition synchronous callback.
     def after_transition(self, event: Event, state: State):

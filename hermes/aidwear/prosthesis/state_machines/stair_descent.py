@@ -156,83 +156,15 @@ class StairDescent(StateMachine, ProsthesisStateMachine):
 
     # Actions.
     def reset(self):
-        self._leading_leg = StairLeadingLegEnum.NONE
-        self._tot_movement = [[], []]
-
+        pass
     def on_enter_double_support(self):
         pass
 
     def on_enter_swing(self):
-        if self._knee_o_roll > self._param.angle_activation_threshold:
-            factor = min(self._swing_dur / self._param.ramp_time, 1)
-            if self._leading_leg == StairLeadingLegEnum.RIGHT:
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=2,
-                    torque=-self._param.torque_knee * factor,
-                    motor_type=ServoMotorEnum.AK80_8,
-                    motor_command_queue=self._motor_command_queue,
-                )
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=4,
-                    torque=self._param.torque_hip * factor,
-                    motor_type=ServoMotorEnum.AK10_9,
-                    motor_command_queue=self._motor_command_queue,
-                )
-            else:
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=3,
-                    torque=self._param.torque_knee * factor,
-                    motor_type=ServoMotorEnum.AK80_8,
-                    motor_command_queue=self._motor_command_queue,
-                )
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=1,
-                    torque=-self._param.torque_hip * factor,
-                    motor_type=ServoMotorEnum.AK10_9,
-                    motor_command_queue=self._motor_command_queue,
-                )
-            self._swing_dur += self._param.gain_step
-        self._stance_dur = 0
+        pass
 
     def on_enter_stance(self):
-        if self._knee_left_roll > self._param.angle_activation_threshold:
-            factor = min(self._stance_dur / self._param.ramp_time, 1)
-            if self._leading_leg == StairLeadingLegEnum.RIGHT:
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=1,
-                    torque=-self._param.torque_hip * factor,
-                    motor_type=ServoMotorEnum.AK10_9,
-                    motor_command_queue=self._motor_command_queue,
-                )
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=3,
-                    torque=self._param.torque_knee * factor,
-                    motor_type=ServoMotorEnum.AK80_8,
-                    motor_command_queue=self._motor_command_queue,
-                )
-            else:
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=2,
-                    torque=-self._param.torque_knee * factor,
-                    motor_type=ServoMotorEnum.AK80_8,
-                    motor_command_queue=self._motor_command_queue,
-                )
-                can_set_torque(
-                    bus=self._bus,
-                    controller_id=4,
-                    torque=self._param.torque_hip * factor,
-                    motor_type=ServoMotorEnum.AK10_9,
-                    motor_command_queue=self._motor_command_queue,
-                )
-            self._stance_dur += self._param.gain_step
-        self._swing_dur = 0
+        pass
 
     def update_sensor_values(
         self,
