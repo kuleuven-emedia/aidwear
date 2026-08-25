@@ -11,4 +11,4 @@ if exist "%FILE%" (
 set /a TRIAL_ID=%TRIAL_ID% + 1
 echo %TRIAL_ID% > "%FILE%"
 
-call hermes-cli -o .\data -f .\run\prosthesis_standalone_cli\exo.yml -e project=AidwearStandaloneCli type=Test trial=%TRIAL_ID%
+call hermes-cli -o .\data -f .\run\prosthesis_standalone_cli\prosthesis.yml -e project=AidwearStandaloneCli type=Test trial=%TRIAL_ID%

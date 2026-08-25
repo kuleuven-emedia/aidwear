@@ -69,16 +69,18 @@ Follow the Seeed Studio [instructions](https://wiki.seeedstudio.com/reComputer_A
    
    Set the public servers to less frequent polling to not abuse them and to not get blacklisted: `pool ntp.ubuntu.com iburst maxsources 4 minpoll 10 maxpoll 15`.
 1. Setup a DHCP server on the `enP1p1s0` ethernet interface for 10.220.24.1/24.
+1. Install any extra needed Python packages using only pip in that virtual environment.
+1. Optimize RAM on the Jetson and use an NVMe swap, following [these instructions](https://www.jetson-ai-lab.com/tutorials/ram-optimization/).
 
 ## Running
 From the project root directory run the relevant convenience launcher:
-| Device | Command |
-| - | - |
-| Standalone exo w/ manual CLI control | `. run/exo_standalone_cli/exo.sh` |
-| Standalone exo w/ manual GUI app control | `. run/exo_standalone_gui/exo.sh` |
-| Dual-controller AI setup w/ HERMES | `. run/ai_<model_type>/ai.sh` |
+| Scenario | Device | Command |
+| - | - | - |
+| Standalone exo w/ manual CLI control | Exo | `. run/exo_standalone_cli/exo.sh` |
+| Standalone exo w/ manual GUI app control | Exo | `. run/exo_standalone_gui/exo.sh` |
+| Full-fledged sensing setup w/ HERMES | Experiment orchestrator (e.g. laptop or NUC) | `. run/ai_<model_type>/master.bat` |
 
-This will automatically wrap the corresponding `exo.yml`/`ai.yml` configuration into the rest of the HERMES execution environment to seemlessly interconnect different sensing, processing, and actuating components. It will also update experiment metadata to create a unique data folder with recorded files.
+This will automatically wrap the corresponding YAML configurations into the rest of the HERMES execution environment to seemlessly interconnect different sensing, processing, and actuating components. It will also update experiment metadata to create a unique data folder with recorded files.
 
 > [!IMPORTANT]
 > The dual-controller setup automatically spawns the HERMES orchestrator between the AI device and the exo embedded controller. Even better, it lets you launch distributed sensing setup from your laptop and have remote shell terminals pop-up to interact with each HERMES-enabled device throughout the experiment.
@@ -89,6 +91,25 @@ This will automatically wrap the corresponding `exo.yml`/`ai.yml` configuration 
 > [!NOTE]
 > (Discouraged) You can also generically run the HERMES CLI to manually configure in-line any desired arguments `hermes-cli -o ./data -f run/exo_<type>.yml -e project=<PROJECT> trial=<X>`
 > Make sure to update the `trial` number on every launch of the script. It's used to create unique folders for data collection that avoid overwriting previously collected data. HERMES system will not allow you to run the same experiment name twice, to protect the previously collected data.
+
+## IMU sensor placement
+<p align="center">
+  <img src="images/xsens_axes.jpg" alt="Axes orientation overview on Xsens IMUs" width="45%" />
+  <img src="images/nicla_axes.png" alt="Axes orientaiton overview on Nicla Sense ME IMUs" width="45%" />
+</p>
+
+> [!IMPORTANT] RevalExo alpha placed Xsens IMUs with LED up, frontally on mid-thigh, mid-foot, pelvis, and laterally above ankle. Integrate Nicla IMUs are all placed frontally. (1) Correct and consistent orientation must be ensured, (2) correct axes mapping from Nicla to Xsens must be done to match expected AI model inputs. Currently, handled by the [`IntentClassifierPipeline`](https://github.com/kuleuven-emedia/revalexo/blob/268b8f7a1a15ce0dd04f8c53eb86b0eb60a7af94/hermes/revalexo/ai/pipeline.py#L167-L207).
+
+RevalExo alpha axes matching:
+| Location | Xsens | Nicla |
+| - | - | - |
+| Pelvis | [x,y,z] | [-y,x,z] |
+| Thigh right | [x,y,z] | [-y,z,-x] |
+| Thigh left | [x,y,z] | [-y,-z,x] |
+| Shank right | [x,y,z] | [-y,z,-x] |
+| Shank left | [x,y,z] | [-y,-z,x] |
+| Foot right | [x,y,z] | [-y,x,z] |
+| Foot left | [x,y,z] | [-y,x,z] |
 
 ### Manual standalone operation
 When running in [standalone CLI mode](#option-1-local-shell-terminal), press the activity id on the keyboard, followed by 'Enter' to manually switch the exo controller to it:
@@ -181,6 +202,9 @@ The exoskeleton-specific files:
  - `pmu_mateksys.py` placeholder to control the MatekSys DroneCAN power monitor unit.
  - `emulator_cubemars.py` contains a callable meant to be run in a thread/process to create a virtual CAN bus that generates fake motor data for validation of the overall system logic.
 
+> [!TIP]
+> The state chart controlling the exo (i.e. `mode_selection.py` and state machines inside `state_machines/`) are built on [**python-statemachine**](https://python-statemachine.readthedocs.io/en/latest/index.html) package and can be visualized using the [built-in graph generator](https://python-statemachine.readthedocs.io/en/latest/diagram.html).
+
 ### HERMES
 #### Exoskeleton
  - `exo/pipeline.py` HERMES Node integrating exoskeleton with the rest of the sensing and companion computing ecosystem.
@@ -216,6 +240,11 @@ The sensors visualize the state of the sensors with the onboard LED for easier t
 
 ![LED blink pattern for different states of the BLE motion sensors](images/nicla_leds.gif)
 
+**Battery and Power Management**
+The battery-powered Nicla firmware supports battery monitoring and remote shutdown:
+1. **Power On:** Press the Nicla's reset button to wake it up.
+2. **Read Battery:** During operation, connect using the nRF Connect app (or similar) to monitor the battery percentage under the standard Battery Service (UUID `180F`, auto-detected).
+3. **Shutdown (Ship Mode):** At the end of use, send a Write command of `0x01` to the custom BLE characteristic (UUID `1002`). This completely shuts down the Nicla's power management IC until the reset button is pressed again.
 > [!IMPORTANT]
 > Current gyroscope + euler configuration (with 9 bytes of metadata) is 27 total bytes/packet, practically limited to 40Hz for 5 concurrently streaming wireless sensors - important for the bandwidth estimation of the mid-level controller and the overall system.
 
@@ -263,11 +292,20 @@ i2cdetect -y 2
 > [!WARNING]
 > Verify signal integrity on the I2C bus. The wire harness packs SCL and SDA unshielded wires tightly together and at high clock speeds (400kHz) may cause cross-talk.
 
-##### Nicla Sense ME
-The integrated motion and environment sensors are configured to use the [TWIS1](https://docs-be.nordicsemi.com/bundle/nRF52832_PS_v1.9/raw/resource/enus/nRF52832_PS_v1.9.pdf#%5B%7B%22num%22%3A776%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C56.692%2C752.879%2Cnull%5D) peripheral for I2C communication, and exposed via the ESLOV connector. Use [PlatformIO](https://platformio.org/) to program and debug the firmware as needed, to validate that I2C commands are received and correctly interpreted.
+The integrated motion and environment sensors are configured to use the [TWIS1](https://docs-be.nordicsemi.com/bundle/nRF52832_PS_v1.9/raw/resource/enus/nRF52832_PS_v1.9.pdf#%5B%7B%22num%22%3A776%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C56.692%2C752.879%2Cnull%5D) peripheral for I2C communication, and exposed via the ESLOV connector. 
 
 > [!IMPORTANT]
 > The internal processing of the Nicla's RTOS stretches the I2C clock for ~500us per transaction. Consider batching multiple queued up samples into a single transaction to mask latency with throughput. This implies updating firmware and balancing the requested sample rate with the number of connected devices.
+
+#### Updating firmware
+
+Use [PlatformIO](https://platformio.org/) to program and debug the firmware as needed:
+1. Install the PlatformIO VSCode extension.
+1. Open an existing project inside PlatformIO dashboard, by opening the folder containin the `.ini` file (e.g. `sensors_firmware/nicla_ble`). This will automatically resolve any build dependencies.
+1. Connect the device over micro-USB.
+1. Change any desired macros in the main C file, to configure the firmware to produce desired modalities, at desired rate, and for battery-powered operation.
+1. Press "Program" to build and flash the firmware.
+1. Save the full MAC address of the device by scanning BLE devices with [nRF Connect](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-mobile) smartphone app, and using the addresses to fill in Nicla MACs in the YAML config files.
 
 ## Networking
 | device | eth0 | wlan0 |

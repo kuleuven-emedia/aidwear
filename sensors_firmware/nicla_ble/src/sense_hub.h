@@ -114,7 +114,7 @@ void setup_sensors()
 #ifdef IS_ACC
     acc.begin();
     #ifndef ACC_RANGE
-    acc.setRange(4);
+    acc.setRange(8);    // +/- 8g (light exercise)
     #else
     acc.setRange(ACC_RANGE);
     #endif
@@ -122,7 +122,7 @@ void setup_sensors()
 #ifdef IS_GYR
     gyr.begin();
     #ifndef GYR_RANGE
-    gyr.setRange(500);
+    gyr.setRange(1000); // +/- 1000dps (light exercise)
     #else
     gyr.setRange(GYR_RANGE);
     #endif

@@ -1,4 +1,4 @@
-pysio-hermes>=0.3.0
+pysio-hermes>=0.5.0
 pysio-hermes-pupillabs
 bleak
 python-can

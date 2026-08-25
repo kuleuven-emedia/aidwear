@@ -1,11 +1,11 @@
 [project]
-name = "revalexo"
+name = "aidwear"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "pysio-hermes>=0.3.0",
+    "pysio-hermes>=0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -15,6 +15,7 @@ exo = [
     "python-can",
     "python-statemachine",
     "scipy",
+    "watchdog",
 ]
 ai = [
     "bleak",
@@ -27,6 +28,7 @@ ai = [
     "pyyaml",
     "pandas",
     "numpy",
+    "scipy",
 ]
 
 [tool.uv.sources]

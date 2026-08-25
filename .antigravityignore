@@ -1,0 +1,88 @@
+test/
+images/
+landing/
+site/
+docs/
+src/hermes/nicla_sense_me/
+src/hermes/notes/
+src/hermes/aidwear/ai_fatigue/
+src/hermes/aidwear/gui/
+sensors_firmware/
+scripts/
+prosthesis_test/
+.config/
+.github/
+run/ai_test/
+run/ai_intent_imu_img/
+run/exo_standalone_cli/
+run/exo_standalone_gui/
+run/prosthesis_standalone_gui/
+
+# ==========================================
+# Python Cache and Compiled Files
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.black
+.ipynb_checkpoints/
+.git/
+
+# ==========================================
+# Virtual Environments (CRITICAL for Token Saving)
+# ==========================================
+venv/
+.venv/
+env/
+.env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+uv.lock
+
+# ==========================================
+# Build and Distribution Artifacts
+# ==========================================
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==========================================
+# Media, Large Datasets, and Logs
+# ==========================================
+*.log
+*.csv
+*.jsonl
+*.sqlite3
+data/
+datasets/
+logs/
+
+# ==========================================
+# IDE and System Files
+# ==========================================
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.DS_Store

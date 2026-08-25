@@ -1,0 +1,31 @@
+# Fatigue deployment config:
+#   ONE frozen PF base (pf_checkpoint), computed every window, with an optional head:
+#     - SysID: trained adapter   -> sysid_checkpoint (has weights)
+#   output_mode selects which is the PRIMARY published RPE;
+# Sources: TMSi BIP-01 (ECG) + Xsens MVN pelvis IMU.
+# Window: rolling 60s (L60), inference every 5s.
+#
+# The PF checkpoint bundle also carries scaler_mean/scaler_scale/feature_names.
+
+pf_checkpoint: "../weights/pf_base_e70.pt"
+sysid_checkpoint: "../weights/sysid_all_e80.pt"
+sysid_epoch: 80
+
+output_mode: "sysid"     # sysid | base
+inference_period_s: 5.0
+
+pf:
+  name: "PF_BASE"
+  proj_dim: 8
+  arch: [64, 32]
+  head_hidden: 32
+  fusion_dropout: 0.3 # Only reflective of training dropout, not used in inference of course.
+  inter_cell_dropout: 0.3
+  head_layernorm: false
+  head_dropout: 0.0
+
+modalities:
+  tmsi:
+    receptive_field_s: 60.0
+  imu:
+    receptive_field_s: 60.0

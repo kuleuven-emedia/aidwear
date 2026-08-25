@@ -20,4 +20,4 @@ trial_id=$((trial_id + 1))
 echo "$trial_id" > "$FILE"
 
 # Run the experiment
-hermes-cli -o ./data -f ./run/prosthesis_standalone_cli/exo.yml -e project=AidwearStandaloneCli type=Test trial=$trial_id
+hermes-cli -o ./data -f ./run/prosthesis_standalone_cli/prosthesis.yml -e project=AidwearStandaloneCli type=Test trial=$trial_id
