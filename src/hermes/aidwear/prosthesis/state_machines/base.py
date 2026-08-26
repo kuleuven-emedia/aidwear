@@ -9,7 +9,7 @@ from abc import abstractmethod
 import numpy as np
 
 
-class ExoStateMachine:
+class ProsthesisStateMachine:
     @abstractmethod
     def step(self) -> None:
         """Cycle the state machine."""

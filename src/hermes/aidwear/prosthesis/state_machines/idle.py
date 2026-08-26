@@ -7,7 +7,7 @@ Description: Prosthesis-specific state machine for the hierarchical control
 import numpy as np
 from statemachine import Event, State, StateMachine
 
-from .base import ExoStateMachine
+from .base import ProsthesisStateMachine
 from ..can_control.motor_epos import can_set_torque
 from ..utils.types import (
     ModeContext,
@@ -17,7 +17,7 @@ from ..utils.types import (
 )
 
 
-class Idle(StateMachine, ExoStateMachine):
+class Idle(StateMachine, ProsthesisStateMachine):
     # States.
     idle = State(value=StateEnum.Idle.IDLE.value, initial=True)
 

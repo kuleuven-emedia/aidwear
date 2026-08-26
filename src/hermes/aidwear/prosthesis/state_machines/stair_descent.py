@@ -10,7 +10,7 @@ from dataclasses import asdict
 from hermes.utils.time_utils import get_time
 from scipy.interpolate import CubicHermiteSpline
 
-from .base import ExoStateMachine
+from .base import ProsthesisStateMachine
 from ..can_control.motor_epos import can_set_position_impedance, can_set_torque
 from ..utils.types import (
     ModeContext,
@@ -26,7 +26,7 @@ from ..utils.types import (
 )
 
 
-class StairDescent(StateMachine, ExoStateMachine):
+class StairDescent(StateMachine, ProsthesisStateMachine):
     # States.
     double_support = State(
         value=StateEnum.StairDescent.DOUBLE_SUPPORT.value, initial=True

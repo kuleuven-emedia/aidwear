@@ -1,5 +1,5 @@
 """
-Filename: hermes/aidwear/prosthesis/state_machines/sit_to_stand.py
+Filename: hermes/aidwear/prosthesis/state_machines/hurdle.py
 Description: AidWear-specific state machine for the hierarchical control
     of the sit-to-stand ambulation mode.
 """
@@ -26,7 +26,7 @@ from ..utils.types import (
 )
 
 
-class SitToStand(StateMachine, ProsthesisStateMachine):
+class Hurdle(StateMachine, ProsthesisStateMachine):
     # States.
     stance = State(value=StateEnum.SitToStand.STANCE.value, initial=True)
     lowering = State(
@@ -105,7 +105,7 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
             phase_end_angle=phase["phase_end_angle"],
         )
 
-        super(SitToStand, self).__init__()
+        super(Hurdle, self).__init__()
 
     # Post-transition synchronous callback.
     def after_transition(self, event: Event, state: State):

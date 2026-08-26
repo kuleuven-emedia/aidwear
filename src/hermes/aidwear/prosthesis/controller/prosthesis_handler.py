@@ -168,44 +168,37 @@ class ProsthesisHandler:
             for motor_spec in motor_mapping.values()
         }
 
-        # Main CAN bus for motor control and PMU reading.
-        if self._is_emulate_can:
-            self._can_bus = can.interface.Bus(
-                channel="localhost:18881", interface="virtualcan"
-            )
-            # Launch process that generates dummy motor data for all 4 motors.
-            self._can_emulator_proc = Process(
-                target=launch_handler,
-                args=(CanEmulator,),
-                kwargs={
-                    "motor_mapping": motor_mapping,
-                    "is_stop_new_data_event": is_stop_new_data_event,
-                    "sampling_rate_hz": motors["sampling_rate_hz"],
-                },
-            )
-            self._can_emulator_proc.start()
-        else:
-            config_can_linux(channel="can0")
-            self._can_bus = can.interface.Bus(channel="can0", interface="socketcan")
+        # # Main CAN bus for motor control and PMU reading.
+        # if self._is_emulate_can:
+        #     self._can_bus = can.interface.Bus(
+        #         channel="localhost:18881", interface="virtualcan"
+        #     )
+        #     # Launch process that generates dummy motor data for all 4 motors.
+        #     self._can_emulator_proc = Process(
+        #         target=launch_handler,
+        #         args=(CanEmulator,),
+        #         kwargs={
+        #             "motor_mapping": motor_mapping,
+        #             "is_stop_new_data_event": is_stop_new_data_event,
+        #             "sampling_rate_hz": motors["sampling_rate_hz"],
+        #         },
+        #     )
+        #     self._can_emulator_proc.start()
+        # else:
+        #     config_can_linux(channel="can0")
+        #     self._can_bus = can.interface.Bus(channel="can0", interface="socketcan")
 
-        # Preconfigured power monitoring unit from MatekSys.
-        pmu_id: int = pmu["id"]
-        pmu_msg_time_threshold: float = pmu["time_threshold"]
-
-        # CAN bus multithreaded async listener.
-        self._can_listener = CanBackend(
-            is_keep_data_event=is_keep_data_event,
-            is_stop_new_data_event=is_stop_new_data_event,
-            motor_type_mapping=motor_type_mapping,
-            motor_latest_data=self._motor_latest_data,
-            motor_data_queue=motor_data_queue,
-            pmu_id=pmu_id,
-            pmu_multipart_msg_time_threshold=pmu_msg_time_threshold,
-            pmu_data_queue=battery_data_queue,
-        )
-        self._can_notifier = can.Notifier(
-            bus=self._can_bus, listeners=[self._can_listener]
-        )
+        # # CAN bus multithreaded async listener.
+        # self._can_listener = CanBackend(
+        #     is_keep_data_event=is_keep_data_event,
+        #     is_stop_new_data_event=is_stop_new_data_event,
+        #     motor_type_mapping=motor_type_mapping,
+        #     motor_latest_data=self._motor_latest_data,
+        #     motor_data_queue=motor_data_queue,
+        # )
+        # self._can_notifier = can.Notifier(
+        #     bus=self._can_bus, listeners=[self._can_listener]
+        # )
 
         # Low-level motor controller gains.
         # TODO: use `watchdog` to live update gains parameters from a local text file for tunning motors response.
@@ -223,7 +216,8 @@ class ProsthesisHandler:
 
         # High-level locomotion mode selection FSM.
         ctx = ModeContext(
-            bus=self._can_bus,
+            bus=None,
+            # bus=self._can_bus,
             K=K,
             motor_latest_data=self._motor_latest_data,
             next_mode=self._next_mode,
@@ -445,6 +439,8 @@ class ProsthesisHandler:
                         self._mode_fsm.to_stair_descent()
                     elif next_mode == ModeEnum.IDLE.value.id:
                         self._mode_fsm.to_idle()
+                    elif next_mode == ModeEnum.HURDLE.value.id:
+                        self._mode_fsm.to_hurdle()
 
             self._mode_fsm.update_sensor_values(
                 torso_angle=torso_angle,
@@ -487,17 +483,17 @@ class ProsthesisHandler:
         # Finalize and print exo statistics.
         if (res := finalize_running_stats(count, mean, mean2)) is not None:
             print(
-                f"Exo {self._dt}s FSM loop timing: mean = {res[0]} | variance = {res[1]} | sample variance = {res[2]} | min loop time = {min_loop_time} | max loop time = {max_loop_time}",
+                f"Prosthesis {self._dt}s FSM loop timing: mean = {res[0]} | variance = {res[1]} | sample variance = {res[2]} | min loop time = {min_loop_time} | max loop time = {max_loop_time}",
                 flush=True,
             )
 
     async def _cleanup(self) -> None:
-        self._can_notifier.stop()
+        # self._can_notifier.stop()
         print("Cleaning up Niclas.", flush=True)
         await self._nicla_backend.cleanup()
-        if self._is_emulate_can:
-            print("Cleaning up CAN emulator.", flush=True)
-            self._can_emulator_proc.join()
+        # if self._is_emulate_can:
+        #     print("Cleaning up CAN emulator.", flush=True)
+        #     self._can_emulator_proc.join()
 
     async def main(self) -> None:
         # Initialize time utils for temporal alignment (data synchronization) with other HERMES components and networked host devices.

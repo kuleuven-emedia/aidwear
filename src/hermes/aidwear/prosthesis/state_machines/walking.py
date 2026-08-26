@@ -11,7 +11,7 @@ from statemachine import Event, State, StateMachine
 from hermes.utils.time_utils import get_time
 from scipy.interpolate import CubicHermiteSpline
 
-from .base import ExoStateMachine
+from .base import ProsthesisStateMachine
 from ..can_control.motor_epos import can_set_position_impedance, can_set_torque
 from ..utils.types import (
     ModeContext,
@@ -28,7 +28,7 @@ from ..utils.types import (
 )
 
 
-class Walking(StateMachine, ExoStateMachine):
+class Walking(StateMachine, ProsthesisStateMachine):
     # States.
     idle = State(value=StateEnum.Walking.IDLE.value, initial=True)
     walking = State(

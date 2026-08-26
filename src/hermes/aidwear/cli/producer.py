@@ -1,8 +1,5 @@
 """
-Filename: hermes/revalexo/cli/producer.py
-Author: Maxim Yudayev <maxim.yudayev@gmail.com>
-Date: 2026-02-20
-Version: 1.0
+Filename: hermes/aidwear/cli/producer.py
 Description: HERMES Node that wraps user keyboard input into
     manually controlled intent, fatigue, and event controller.
 """
@@ -20,7 +17,7 @@ from hermes.utils.types import LoggingSpec
 from hermes.base.nodes.producer import Producer
 import numpy as np
 
-from src.hermes.aidwear.prosthesis.utils.types import ModeEnum
+from hermes.aidwear.prosthesis.utils.types import ModeEnum
 
 from .data_container import CliDataContainer
 
@@ -28,7 +25,7 @@ from .data_container import CliDataContainer
 class CliProducer(Producer):
     def __init__(
         self,
-        topic: str,
+        node_id: str,
         host_ip: str,
         logging_spec: LoggingSpec,
         buf_len: Optional[int] = 1000,
@@ -48,9 +45,8 @@ class CliProducer(Producer):
         ) -> None:
             print(f"User selected transition to: {mode.value.text}", flush=True)
             self._publish(
-                "%s.data" % self.topic,
                 process_time_s=process_time_s,
-                data={
+                new_data={
                     "intent": {
                         "toa_s": np.array([[toa_s]], dtype=np.float64),
                         "mode": np.array([[mode.value.id]], dtype=np.uint8),
@@ -64,9 +60,8 @@ class CliProducer(Producer):
         ) -> None:
             print(f"User set assistance to: {fatigue}", flush=True)
             self._publish(
-                "%s.data" % self.topic,
                 process_time_s=process_time_s,
-                data={
+                new_data={
                     "fatigue": {
                         "toa_s": np.array([[toa_s]], dtype=np.float64),
                         "level": np.array([[fatigue]], dtype=np.float32),
@@ -80,9 +75,8 @@ class CliProducer(Producer):
         ) -> None:
             print(f"User marked event", flush=True)
             self._publish(
-                "%s.data" % self.topic,
                 process_time_s=process_time_s,
-                data={
+                new_data={
                     "event": {
                         "toa_s": np.array([[toa_s]], dtype=np.float64),
                         "mark": np.array([[1]], dtype=np.uint8),
@@ -96,9 +90,8 @@ class CliProducer(Producer):
         ) -> None:
             print(f"Safety stop triggered", flush=True)
             self._publish(
-                "%s.data" % self.topic,
                 process_time_s=process_time_s,
-                data={
+                new_data={
                     "safety_stop": {
                         "toa_s": np.array([[toa_s]], dtype=np.float64),
                         "is_pause": np.array([[is_pause]], dtype=np.bool),
@@ -115,10 +108,6 @@ class CliProducer(Producer):
                 intent_callback, mode
             )
 
-        self._fatigue_keyboard_mapper = fatigue_callback
-
-        self._event_keyboard_mapper = event_callback
-
         self._safety_stop_keyboard_mapper = safety_stop_callback
 
         data_out_spec = {
@@ -126,7 +115,7 @@ class CliProducer(Producer):
         }
 
         super().__init__(
-            topic=topic,
+            node_id=node_id,
             host_ip=host_ip,
             data_out_spec=data_out_spec,
             logging_spec=logging_spec,
@@ -153,23 +142,7 @@ class CliProducer(Producer):
             try:
                 toa_s, user_input = self._input_queue.get(timeout=5)
                 process_time_s = get_time()
-                if user_input[0] == "%":
-                    user_lvl: int = int(user_input[1:])
-                    fatigue: float = (
-                        user_lvl
-                        if 0 <= user_lvl <= 100
-                        else (100 if user_lvl > 100 else 0)
-                    )
-                    self._fatigue_keyboard_mapper(
-                        fatigue, toa_s, process_time_s, self._fatigue_sequence_id
-                    )
-                    self._fatigue_sequence_id += 1
-                elif user_input[0] == "e":
-                    self._event_keyboard_mapper(
-                        toa_s, process_time_s, self._event_sequence_id
-                    )
-                    self._event_sequence_id += 1
-                elif user_input[0] == "s":
+                if user_input[0] == "s":
                     self._is_pause = not self._is_pause
                     self._safety_stop_keyboard_mapper(
                         toa_s, self._is_pause, process_time_s, self._event_sequence_id

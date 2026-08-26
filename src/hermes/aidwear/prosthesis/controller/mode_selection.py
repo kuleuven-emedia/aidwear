@@ -1,10 +1,7 @@
 """
-Filename: hermes/revalexo/exo/controller/mode_selection.py
-Author: Maxim Yudayev <maxim.yudayev@gmail.com>
-Date: 2025-12-10
-Version: 1.0
+Filename: hermes/aidwear/prosthesis/controller/mode_selection.py
 Description: Inter-ambulation mode state machine controller that implements
-    how transitions between activities are done and what the exoskeleton does.
+    how transitions between activities are done and what the prosthesis does.
 """
 
 from statemachine import Event, StateMachine, State
@@ -13,9 +10,10 @@ from hermes.utils.time_utils import get_time
 
 from ..utils.types import ModeContext, ModeEnum, ModeTransition
 from ..state_machines import (
-    ExoStateMachine,
+    ProsthesisStateMachine,
     Idle,
     Walking,
+    Hurdle,
     SitToStand,
     StairAscent,
     StairDescent,
@@ -65,52 +63,32 @@ class ModeSelectionMachine(StateMachine):
         name=ModeEnum.STAIR_DESCENT.value.text,
         value=ModeEnum.STAIR_DESCENT.value.id,
     )
+    hurdle = State(
+        name=ModeEnum.HURDLE.value.text,
+        value=ModeEnum.HURDLE.value.id,
+    )
 
     allow_event_without_transition: bool = True
-    _exo_mode: ExoStateMachine
+    _exo_mode: ProsthesisStateMachine
     _sequence_id: int
     _source: int
 
-    # NOTE: if safety of switching from Any to Target state (especially for larger #states) can be generalized,
-    #   declare target-centric transitions with (`from_`)[https://python-statemachine.readthedocs.io/en/latest/transitions.html#from-and-from-any]
-
-    # From any to `idle` ambulation mode must be immediate.
+    # From any to `idle`.
     to_idle = idle.from_.any()
 
-    # NOTE: combination of conditions is possible to reuse shared logic among transitions
-    #   [https://python-statemachine.readthedocs.io/en/latest/guards.html#condition-expressions]
+    to_hurdle = hurdle.from_.any()
 
     # From any to `walking`.
-    to_walking = (
-        idle.to(walking, cond="is_safe_idle_to_walking")
-        | sit_to_stand.to(walking, cond="is_safe_sit_to_stand_to_walking")
-        | stair_ascent.to(walking, cond="is_safe_stair_ascent_to_walking")
-        | stair_descent.to(walking, cond="is_safe_stair_descent_to_walking")
-    )
+    to_walking = walking.from_.any()
 
     # From any to `sit_to_stand`.
-    to_sit_to_stand = (
-        idle.to(sit_to_stand, cond="is_safe_idle_to_sit_to_stand")
-        | walking.to(sit_to_stand, cond="is_safe_walking_to_sit_to_stand")
-        | stair_ascent.to(sit_to_stand, cond="is_safe_stair_ascent_to_sit_to_stand")
-        | stair_descent.to(sit_to_stand, cond="is_safe_stair_descent_to_sit_to_stand")
-    )
+    to_sit_to_stand = sit_to_stand.from_.any()
 
     # From any to `stair_ascent`.
-    to_stair_ascent = (
-        idle.to(stair_ascent, cond="is_safe_idle_to_stair_ascent")
-        | walking.to(stair_ascent, cond="is_safe_walking_to_stair_ascent")
-        | sit_to_stand.to(stair_ascent, cond="is_safe_sit_to_stand_to_stair_ascent")
-        | stair_descent.to(stair_ascent, cond="is_safe_stair_descent_to_stair_ascent")
-    )
+    to_stair_ascent = stair_ascent.from_.any()
 
     # From any to `stair_descent`.
-    to_stair_descent = (
-        idle.to(stair_descent, cond="is_safe_idle_to_stair_descent")
-        | walking.to(stair_descent, cond="is_safe_walking_to_stair_descent")
-        | sit_to_stand.to(stair_descent, cond="is_safe_sit_to_stand_to_stair_descent")
-        | stair_ascent.to(stair_descent, cond="is_safe_stair_ascent_to_stair_descent")
-    )
+    to_stair_descent = stair_descent.from_.any()
 
     def __init__(self, ctx: ModeContext, is_immediate_mode_switch: bool = False):
         self._ctx = ctx
@@ -180,6 +158,9 @@ class ModeSelectionMachine(StateMachine):
     # TODO: `watchdog` based `ConfigManager` will break (not live update config from files anymore) if a state machine is not instantiated on every transition.
     def on_enter_idle(self):
         self._exo_mode = Idle(self._ctx)
+
+    def on_enter_hurdle(self):
+        self._exo_mode = Hurdle(self._ctx)
 
     def on_exit_idle(self):
         pass
