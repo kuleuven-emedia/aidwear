@@ -168,13 +168,7 @@ void disconnectDataHandler(BLEDevice central) {
     Serial.println(central.address());
 #endif
     is_connected = false;
-    for(int i = 0; i < 8; ++i)
-    {
-        nicla::leds.setColor(red);
-        delay(100);
-        nicla::leds.setColor(off);
-        delay(200);
-    }
+    nicla::leds.setColor(red);
 }
 
 
@@ -184,16 +178,7 @@ void connectDataHandler(BLEDevice central) {
     Serial.println(central.address());
 #endif
     is_connected = true;
-    for(int i = 0; i < 6; ++i)
-    {
-        nicla::leds.setColor(blue);
-        delay(100);
-        nicla::leds.setColor(off);
-        delay(200);
-        nicla::leds.setColor(red);
-        delay(100);
-    }
-    nicla::leds.setColor(off);
+    nicla::leds.setColor(green);
 }
 
 
@@ -228,6 +213,12 @@ void setup()
         nicla::leds.setColor(red);
         while (1);
     }
+
+    // Configure BLE connection parameters:
+    // Connection interval: 1 unit = 1.25 ms -> 8 = 10 ms, 16 = 20 ms
+    BLE.setConnectionInterval(8, 16);
+    // Supervision timeout: 1 unit = 10 ms -> 300 = 3000 ms (3 seconds)
+    BLE.setSupervisionTimeout(300);
 
     // build a unique name from the last 2 bytes of the BLE address:
     String addr = BLE.address();                        // e.g. "AB:CD:EF:12:34:56"

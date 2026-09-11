@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 import struct
-from typing import Optional
+from typing import Optional, Union, Any
 import numpy as np
 
 
@@ -85,6 +85,38 @@ class NiclaPacketMask(Enum):
     HUM = MaskParsingTuple(mask=0x80, format="f", key="humidity", num_bytes=4)
 
 
+_PARSER_CACHE: dict[int, Callable[[Any], "NiclaData"]] = {}
+
+
+def _create_packet_parser(mask: int) -> Callable[[Any], "NiclaData"]:
+    fmt = "<BII"
+    field_specs: list[tuple[str, int]] = []
+    for modality in NiclaPacketMask:
+        if mask & modality.value.mask:
+            fmt += modality.value.format
+            count = (
+                int(modality.value.format[:-1])
+                if modality.value.format[:-1].isdigit()
+                else 1
+            )
+            field_specs.append((modality.value.key, count))
+    compiled_struct = struct.Struct(fmt)
+
+    def parser(data: Union[bytes, bytearray]) -> "NiclaData":
+        vals = compiled_struct.unpack_from(data)
+        kwargs = {"timestamp": vals[1], "sequence_id": vals[2]}
+        idx = 3
+        for key, count in field_specs:
+            if count == 1:
+                kwargs[key] = vals[idx]
+            else:
+                kwargs[key] = vals[idx : idx + count]
+            idx += count
+        return NiclaData(**kwargs)
+
+    return parser
+
+
 @dataclass
 class NiclaData:
     """Data class for representing Nicla Sense ME sensor data.
@@ -127,17 +159,13 @@ class NiclaData:
     humidity: Optional[float] = None
 
     @classmethod
-    def from_bytes(cls, data: bytearray):
-        mask, timestamp, sequence_id = struct.unpack_from("<BII", data)
-        kwargs = {"timestamp": timestamp, "sequence_id": sequence_id}
-        offset: int = 9
-
-        for modality in NiclaPacketMask:
-            if mask & modality.value.mask:
-                val = struct.unpack_from(modality.value.format, data, offset)
-                kwargs[modality.value.key] = val[0] if len(val) == 1 else val
-                offset += modality.value.num_bytes
-        return cls(**kwargs)
+    def from_bytes(cls, data: Union[bytes, bytearray]) -> "NiclaData":
+        mask = data[0]
+        parser = _PARSER_CACHE.get(mask)
+        if parser is None:
+            parser = _create_packet_parser(mask)
+            _PARSER_CACHE[mask] = parser
+        return parser(data)
 
 
 @dataclass

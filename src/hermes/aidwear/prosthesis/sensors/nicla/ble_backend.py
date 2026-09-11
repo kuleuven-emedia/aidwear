@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/exo/sensors/nicla/ble_backend.py
+Filename: hermes/aidwear/prosthesis/sensors/nicla/ble_backend.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-01-02
 Version: 1.0
@@ -19,8 +19,8 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 
 from hermes.utils.time_utils import get_time
 
-from src.hermes.aidwear.utils.types import NiclaData
-from src.hermes.aidwear.prosthesis.sensors.nicla.abstract_backend import NiclaBackend
+from hermes.aidwear.utils.types import NiclaData
+from hermes.aidwear.prosthesis.sensors.nicla.abstract_backend import NiclaBackend
 
 
 class NiclaBleBackend(NiclaBackend):
@@ -100,13 +100,16 @@ class NiclaBleBackend(NiclaBackend):
 
     async def _connect_all(self) -> bool:
         try:
-            results = await asyncio.gather(
-                *[
-                    self._connect_and_subscribe(name, device)
-                    for name, device in self._discovered_devices.items()
-                ]
-            )
-            return all(results)
+            for name, device in self._discovered_devices.items():
+                if name in self._connected_devices:
+                    continue
+                success = await self._connect_and_subscribe(name, device)
+                if not success:
+                    print(f"Failed to connect to {name}.", flush=True)
+                    return False
+                # Settle delay between connection setups to let BlueZ & controller stabilize
+                await asyncio.sleep(0.3)
+            return True
         except Exception as e:
             print("Failed to connect to some of the Niclas.\n", e, flush=True)
             return False
@@ -117,13 +120,18 @@ class NiclaBleBackend(NiclaBackend):
             disconnected_callback=self._make_disconnection_callback(name, device),
         )
         try:
-            await client.connect()
+            await client.connect(timeout=5.0)
             print(f"Connected to {name} [{device.address}]", flush=True)
             await client.start_notify(self._char_uuid, self._make_data_callback(name))
             self._connected_devices[name] = client
             return True
         except Exception as e:
             print(f"Failed to connect to {name}: {e}", flush=True)
+            try:
+                if client.is_connected:
+                    await client.disconnect()
+            except Exception:
+                pass
             return False
 
     async def connect(self):
@@ -141,16 +149,14 @@ class NiclaBleBackend(NiclaBackend):
     async def run(self):
         while not self._is_cleanup_event.is_set():
             for name, (device, _) in list(self._disconnected_devices.items()):
-                print(f"Trying to reconnect to {name}...", flush=True)
-
-                fresh_device = await BleakScanner.find_device_by_address(
-                    device.address, timeout=1.0
+                print(
+                    f"Trying to directly reconnect to {name} [{device.address}]...",
+                    flush=True,
                 )
-                if not fresh_device:
-                    print(f"Device {name} not found in scan.", flush=True)
-                    continue
 
-                success = await self._connect_and_subscribe(name, fresh_device)
+                # Attempt direct connection without BleakScanner active scan,
+                # which would interrupt streaming on currently connected sensors.
+                success = await self._connect_and_subscribe(name, device)
                 if success:
                     print(f"Reconnected to {name}.", flush=True)
                     self._disconnected_devices.pop(name, None)

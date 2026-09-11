@@ -110,9 +110,9 @@ constexpr size_t BUF_SIZE =
 
 void setup_sensors()
 {
-    // TODO: configure the sample rate properly.
+    // Configure sensor sample rate (100 Hz, 0 latency for IMU/orientation)
 #ifdef IS_ACC
-    acc.begin();
+    acc.begin(100.0f, 0);
     #ifndef ACC_RANGE
     acc.setRange(8);    // +/- 8g (light exercise)
     #else
@@ -120,7 +120,7 @@ void setup_sensors()
     #endif
 #endif
 #ifdef IS_GYR
-    gyr.begin();
+    gyr.begin(100.0f, 0);
     #ifndef GYR_RANGE
     gyr.setRange(1000); // +/- 1000dps (light exercise)
     #else
@@ -128,26 +128,26 @@ void setup_sensors()
     #endif
 #endif
 #ifdef IS_MAG
-    mag.begin();
+    mag.begin(100.0f, 0);
 #endif
 #ifdef IS_EULER
-    euler.begin();
+    euler.begin(100.0f, 0);
 #endif
 #ifdef IS_QUAT
-    quat.begin();
+    quat.begin(100.0f, 0);
 #endif
 #ifdef IS_TEMP
-    temperature.begin();
+    temperature.begin(1.0f, 0);
 #endif
 #ifdef IS_BARO
-    pressure.begin();
+    pressure.begin(1.0f, 0);
 #endif
 #ifdef IS_HUM
-    humidity.begin();
+    humidity.begin(1.0f, 0);
 #endif
 // #ifdef IS_GAS
 //     float gasValue;
-//     gas.begin();
+//     gas.begin(1.0f, 0);
 // #endif
 }
 
