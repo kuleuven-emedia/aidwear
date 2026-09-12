@@ -238,6 +238,9 @@ The [`prosthesis.yml`](/run/prosthesis_standalone_cli/prosthesis.yml#L50) file o
 
 Use [PlatformIO](https://platformio.org/) to program and debug the firmware as needed, instead of the limited Arduino IDE.
 
+> [!IMPORTANT]
+>  In the future, [reflash](https://github.com/arduino/nicla-sense-me-fw/tree/main/Arduino_BHY2/examples/BHYFirmwareUpdate) the Bosch's BHI260 firwmare and add [sensor calibration](https://www.bosch-sensortec.com/media/boschsensortec/downloads/application_notes_1/bst-bhi260_bhi360-an002.pdf) routines (accelerometer, gyroscope, magnetometer).
+
 #### (Option #1) - `BLE`
 Uses the `bleak` package on the Raspberry Pi to receive wireless Bluetooth Low Energy data packets from the Nicla Sense ME devices. Quality is subject to RF interference from other devices, throughput limitation, BLE issues, lack of continuous synchronization between devices.
 
@@ -254,6 +257,10 @@ The battery-powered Nicla firmware supports battery monitoring and remote shutdo
 1. **Power On:** Press the Nicla's reset button to wake it up.
 2. **Read Battery:** During operation, connect using the nRF Connect app (or similar) to monitor the battery percentage under the standard Battery Service (UUID `180F`, auto-detected).
 3. **Shutdown (Ship Mode):** At the end of use, send a Write command of `0x01` to the custom BLE characteristic (UUID `1002`). This completely shuts down the Nicla's power management IC until the reset button is pressed again.
+
+> [!TIP]
+> Some Nicla's PMIC power cycles when the shutdown BLE command is sent. A solution is to plug-in the micro-USB into the Nicla, send the shutdown command, disconnect the micro-USB. This will prevent the PMIC from power cycling on battery power.
+
 > [!IMPORTANT]
 > Current gyroscope + euler configuration (with 9 bytes of metadata) is 27 total bytes/packet, practically limited to 40Hz for 5 concurrently streaming wireless sensors without batching and OS tuning.
 > For Raspberry Pi OS kernel settings, BlueZ parameter adjustments, disconnection prevention, and measurement batching architecture, see the [Nicla BLE Optimization & Tuning Guide](/docs/nicla_ble_tuning.md).
