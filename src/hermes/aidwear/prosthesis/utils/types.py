@@ -1,9 +1,9 @@
 """
-Filename: hermes/revalexo/exo/utils/types.py
+Filename: hermes/aidwear/prosthesis/utils/types.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
-Date: 2025-12-10
+Date: 2026-09-12
 Version: 1.0
-Description: Revalexo-specific data types.
+Description: AidWear-specific data types.
 """
 
 from dataclasses import dataclass, field
@@ -111,10 +111,12 @@ class EposDevice(Enum):
     EPOS2 = b"EPOS2"
     EPOS4 = b"EPOS4"
 
+
 class EposProtocolStack(Enum):
     MAXON_RS232 = b"MAXON_RS232"
     MAXON_SERIAL_V2 = b"MAXON SERIAL V2"
     CAN_OPEN = b"CANopen"
+
 
 # [Refer to the EPOS docs](https://www.maxongroup.com/medias/sys_master/root/9444047912990/EPOS4-Firmware-Specification-En.pdf#G5.2444977)
 class EposOperationMode(Enum):
@@ -128,11 +130,13 @@ class EposOperationMode(Enum):
     MASTER_ENCODER = -5
     STEP_DIRECTION = -6
 
+
 class EposState(Enum):
     DISABLED = 0
     ENABLED = 1
     QUICKSTOP = 2
     FAULT = 3
+
 
 class HomingMethod(Enum):
     ACTUAL_POSITION = 35
@@ -153,14 +157,6 @@ class HomingMethod(Enum):
     CURRENT_THRESHOLD_NEGATIVE_SPEED = -4
 
 
-
-
-
-
-
-
-
-
 class ServoErrorCode(Enum):
     NO_ERR = 0  # No Error
     OVER_TEMP = 1  # Over temperature fault
@@ -168,28 +164,20 @@ class ServoErrorCode(Enum):
     OVER_VOLT = 3  # Over voltage fault
     UNDER_VOLT = 4  # Under voltage fault
     ENCODER_ERR = 5  # Encoder fault
-    PHASE_IMBALANCE_ERR = (
-        6  # Phase current unbalanced fault (The hardware may be damaged)
-    )
+    PHASE_IMBALANCE_ERR = 6  # Phase current unbalanced fault (The hardware may be damaged)
 
 
 class ServoCanPacketEnum(Enum):
-    DUTY_CYCLE_MODE = (
-        0  # Motor is driven by a square wave voltage of specified duty cycle
-    )
+    DUTY_CYCLE_MODE = 0  # Motor is driven by a square wave voltage of specified duty cycle
     CURRENT_LOOP_MODE = 1  # Motor operates in torque loop mode
     CURRENT_BRAKE_MODE = 2  # Motor holds current position at specified braking current
     VELOCITY_MODE = 3  # Motor operates at specified target speed
     POSITION_MODE = 4  # Motor reaches specified target position at maximum speed
     SET_ORIGIN_MODE = 5  # Motor calibrates homing position
-    POSITION_VELOCITY_MODE = (
-        6  # Motor operates at specified position, velocity, and acceleration
-    )
+    POSITION_VELOCITY_MODE = 6  # Motor operates at specified position, velocity, and acceleration
     MOTOR_DISABLE_MODE = 15  # Motor gets disabled
     FEEDBACK_MESSAGE_CONFIG = 16  # Motor feedback data contents are updated
-    VIRTUAL_IMPEDANCE_MODE = (
-        17  # Motor operates in impedance mode, through torque loop mode as proxy
-    )
+    VIRTUAL_IMPEDANCE_MODE = 17  # Motor operates in impedance mode, through torque loop mode as proxy
 
 
 @dataclass
