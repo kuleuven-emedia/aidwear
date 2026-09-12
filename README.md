@@ -1,5 +1,5 @@
 # AidWear
-Prosthesis controller, wrapped with KU Leuven's [HERMES](https://github.com/maximyudayev/hermes) framework to communicate to an external AI controller for intent-based locomotion mode selection and fatigue-based support level moderation.
+Prosthesis controller, wrapped with [HERMES](https://github.com/maximyudayev/hermes) framework to communicate to an external AI controller for intent-based locomotion mode selection and fatigue-based support level moderation. Wrist-worn [Android GUI](https://github.com/kuleuven-emedia/aidwear-gui) provides human-in-the-loop control of the prosthesis and a hinge to interact with on-device AI models.
 
 The prosthesis uses a hierarchical controller, with each layer controlling the layer below it:
 - High-level -> AI-based intent (ambulation mode) and fatigue forecasting
@@ -98,7 +98,7 @@ This will automatically wrap the corresponding YAML configurations into the rest
 </p>
 
 > [!IMPORTANT]
-> AidWear placed Xsens IMUs with LED up, frontally on mid-thigh, mid-foot, pelvis, and laterally above ankle. Integrated Nicla IMUs are all placed frontally. (1) Correct and consistent orientation must be ensured, (2) correct axes mapping from Nicla to Xsens must be done to match expected AI model inputs. Currently, handled by the [`IntentClassifierPipeline`](/src/hermes/aidwear/ai_intent/pipeline.py).
+> AidWear placed Xsens IMUs with LED up, frontally on mid-thigh, mid-foot, pelvis, and laterally above ankle. Integrated Nicla IMUs are all placed frontally. (1) Correct and consistent orientation must be ensured, (2) correct axes mapping from Nicla to Xsens must be done to match expected AI model inputs. Currently, handled by the [`IntentClassifierPipeline`](/src/hermes/aidwear/ai_intent/pipeline.py#L180-292).
 
 AidWear axes matching:
 | Location | Xsens | Nicla |
@@ -234,9 +234,12 @@ src/
 
 
 ### Nicla Sense ME
-The [`prosthesis.yml`](/run/prosthesis_standalone_cli/prosthesis.yml#L50) file offers an option to configure the system to use [BLE or I2C](/run/prosthesis_standalone_cli/prosthesis.yml#L50) for communication with the onboard [Nicla motion sensors](https://docs.arduino.cc/hardware/nicla-sense-me/). The `device_mapping` must be correspondingly selected (commented/uncommented) and updated with the correct MAC addresses (in the case of BLE).
+The [`prosthesis.yml`](/run/prosthesis_standalone_cli/prosthesis.yml) file offers an option to configure the system to use [BLE or I2C](/run/prosthesis_standalone_cli/prosthesis.yml#L50) for communication with the onboard [Nicla motion sensors](https://docs.arduino.cc/hardware/nicla-sense-me/). The [`device_mapping`](/run/prosthesis_standalone_cli/prosthesis.yml#L53-57) must be correspondingly selected (commented/uncommented) and updated with the correct MAC addresses (in the case of BLE).
 
 Use [PlatformIO](https://platformio.org/) to program and debug the firmware as needed, instead of the limited Arduino IDE.
+
+> [!WARNING]
+> Make sure that the default 4g accelerometer and 500dps IMU range scaling does not clip the data expected in your application: change it in [Nicla firmware](/sensors_firmware/nicla_ble/src/nicla_ble.ino#L20-21) and the [HERMES deployment configuration](/run/exo_standalone_cli/exo.yml#L65-66).
 
 > [!IMPORTANT]
 >  In the future, [reflash](https://github.com/arduino/nicla-sense-me-fw/tree/main/Arduino_BHY2/examples/BHYFirmwareUpdate) the Bosch's BHI260 firwmare and add [sensor calibration](https://www.bosch-sensortec.com/media/boschsensortec/downloads/application_notes_1/bst-bhi260_bhi360-an002.pdf) routines (accelerometer, gyroscope, magnetometer).
@@ -246,7 +249,7 @@ Uses the `bleak` package on the Raspberry Pi to receive wireless Bluetooth Low E
 
 The prosthesis uses the integrated motion sensors in a "Push" strategy, where the sensors push the latest motion information into the prosthesis, to drive its internal logic. The prosthesis uses the most up-to-date and lowest latency kinematics knowledge, without any attempts at synchronizing data. This allows it to maintain tight soft realtime guarantees.
 
-The [BLE firmware](/sensors_firmware/nicla_ble/nicla_ble.ino) compiles with flags that enable desired modalities - by default, gyroscope and Euler orientation data.
+The [BLE firmware](/sensors_firmware/nicla_ble/nicla_ble.ino#L16-19) compiles with flags that enable desired modalities - by default, gyroscope and Euler orientation data.
 
 The sensors visualize the state of the sensors with the onboard LED for easier troubleshooting and validation of the health of the prosthesis.
 
