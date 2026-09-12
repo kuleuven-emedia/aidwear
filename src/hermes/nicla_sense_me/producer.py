@@ -17,7 +17,7 @@ from hermes.utils.zmq_utils import PORT_BACKEND, PORT_SYNC_HOST, PORT_KILL
 from hermes.utils.time_utils import get_time
 from hermes.utils.types import LoggingSpec
 
-from src.hermes.aidwear.utils.types import NiclaData, NiclaPayloadMode
+from hermes.aidwear.utils.types import NiclaData, NiclaPayloadMode
 from .data_container import NiclaSenseMeDataContainer
 from .handler import NiclaSenseMeHandler
 
@@ -25,7 +25,7 @@ from .handler import NiclaSenseMeHandler
 class NiclaSenseMeProducer(Producer):
     def __init__(
         self,
-        topic: str,
+        node_id: str,
         host_ip: str,
         niclas: dict,
         logging_spec: LoggingSpec,
@@ -87,7 +87,7 @@ class NiclaSenseMeProducer(Producer):
         }
 
         super().__init__(
-            topic=topic,
+            node_id=node_id,
             host_ip=host_ip,
             data_out_spec=data_out_spec,
             logging_spec=logging_spec,
@@ -146,8 +146,7 @@ class NiclaSenseMeProducer(Producer):
                         output[f"nicla_{nicla_name}"][data_name] = data_getter(data)
 
             if output:
-                tag: str = "%s.data" % self.topic
-                self._publish(tag, process_time_s=process_time_s, data=output)
+                self._publish(process_time_s=process_time_s, new_data=output)
         else:
             self._send_end_packet()
 

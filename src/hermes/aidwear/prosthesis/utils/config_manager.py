@@ -9,7 +9,6 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 
-__default_config_path = "run/fsm_config_default.yml"
 
 
 class ConfigManager:
@@ -19,7 +18,7 @@ class ConfigManager:
         if config_path:
             self.path = Path(config_path).resolve()
         else:
-            config = Path(__default_config_path).resolve()
+            config = Path("run/fsm_config_default.yml").resolve()
             self.path = config.parent / "fsm_config_temp.yml"
             shutil.copy2(config, self.path)
 

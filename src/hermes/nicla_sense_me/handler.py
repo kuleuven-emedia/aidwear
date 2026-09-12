@@ -19,7 +19,8 @@ from hermes.utils.time_utils import init_time
 
 from .utils.abstract_backend import NiclaBackend
 from .utils.ble_backend import NiclaBleBackend
-from src.hermes.aidwear.utils.types import (
+from hermes.aidwear.utils.types import (
+    NiclaMappingNoPelvisAndFeet,
     NiclaMappingPelvisAndFeet,
     NiclaConnectionType,
     NiclaData,
@@ -54,9 +55,14 @@ class NiclaSenseMeHandler:
 
         # Filter out AI-only Niclas if running exo without the AI and validate input mapping.
         nicla_mapping: dict[str, dict] = niclas["device_mapping"]
-        self._nicla_name_mapping = NiclaMappingPelvisAndFeet(
-            **dict(zip(nicla_mapping.keys(), nicla_mapping.keys()))
-        )
+        if niclas["is_pelvis_and_feet"]:
+            self._nicla_name_mapping = NiclaMappingPelvisAndFeet(
+                **dict(zip(nicla_mapping.keys(), nicla_mapping.keys()))
+            )
+        else:
+            self._nicla_name_mapping = NiclaMappingNoPelvisAndFeet(
+                **dict(zip(nicla_mapping.keys(), nicla_mapping.keys()))
+            )
 
         self._nicla_latest_data: dict[str, deque[NiclaData]] = dict(
             map(

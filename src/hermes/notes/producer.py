@@ -24,7 +24,7 @@ from .data_container import NotesDataContainer
 class NotesProducer(Producer):
     def __init__(
         self,
-        topic: str,
+        node_id: str,
         host_ip: str,
         logging_spec: LoggingSpec,
         buf_len: Optional[int] = 1000,
@@ -40,9 +40,8 @@ class NotesProducer(Producer):
             toa_s: float, event_type: int, process_time_s: float, sequence_id: int
         ) -> None:
             self._publish(
-                "%s.data" % self.topic,
                 process_time_s=process_time_s,
-                data={
+                new_data={
                     "event": {
                         "toa_s": np.array([[toa_s]], dtype=np.float64),
                         "type": np.array([[event_type]], dtype=np.uint8),
@@ -58,7 +57,7 @@ class NotesProducer(Producer):
         }
 
         super().__init__(
-            topic=topic,
+            node_id=node_id,
             host_ip=host_ip,
             data_out_spec=data_out_spec,
             logging_spec=logging_spec,

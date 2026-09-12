@@ -1,3 +1,0 @@
-bleak
-h5py
-numpy

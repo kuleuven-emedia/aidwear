@@ -17,11 +17,6 @@ import numpy as np
 from collections import deque
 from dataclasses import fields
 
-# For MQTT
-# import json
-# from xmlrpc import client
-# import paho.mqtt.client as mqtt
-
 from hermes.utils.time_utils import get_time, init_time
 from hermes.utils.mp_utils import launch_handler
 
@@ -31,7 +26,6 @@ from ..sensors.can_backend import CanBackend
 from ..sensors.nicla.abstract_backend import NiclaBackend
 from ..sensors.nicla.ble_backend import NiclaBleBackend
 from ..sensors.nicla.i2c_backend import NiclaI2cBackend
-from ..can_control.emulator_maxon import CanEmulator
 from ..can_control.motor_epos import can_set_origin
 from ..utils.utils import (
     config_can_linux,
@@ -169,6 +163,7 @@ class ProsthesisHandler:
         }
 
         # # Main CAN bus for motor control and PMU reading.
+        self._can_bus = None
         # if self._is_emulate_can:
         #     self._can_bus = can.interface.Bus(
         #         channel="localhost:18881", interface="virtualcan"
@@ -216,8 +211,7 @@ class ProsthesisHandler:
 
         # High-level locomotion mode selection FSM.
         ctx = ModeContext(
-            bus=None,
-            # bus=self._can_bus,
+            bus=self._can_bus,
             K=K,
             motor_latest_data=self._motor_latest_data,
             next_mode=self._next_mode,
@@ -246,28 +240,14 @@ class ProsthesisHandler:
         print("Measuring offsets... Please stand still.", flush=True)
         can_set_origin(
             bus=self._can_bus,
-            motor_id=MotorId.KNEE_RIGHT,
+            motor_id=MotorId.KNEE,
             mode=1,
             motor_command_queue=self._motor_command_queue,
             is_keep_data_event=self._is_keep_data_event,
         )
         can_set_origin(
             bus=self._can_bus,
-            motor_id=MotorId.HIP_RIGHT,
-            mode=1,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_origin(
-            bus=self._can_bus,
-            motor_id=MotorId.HIP_LEFT,
-            mode=1,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_origin(
-            bus=self._can_bus,
-            motor_id=MotorId.KNEE_LEFT,
+            motor_id=MotorId.ANKLE,
             mode=1,
             motor_command_queue=self._motor_command_queue,
             is_keep_data_event=self._is_keep_data_event,
@@ -458,10 +438,6 @@ class ProsthesisHandler:
             )
 
             self._mode_fsm.step()
-
-            # #send data over MQTT for plotting
-            # mqtt_data = self._mode_fsm.send_data()
-            # self._mqtt_client.publish("revalexo/data", json.dumps(mqtt_data))
 
             end_time_s = get_time()
             if (sleep_s := next_period_s - end_time_s) > 0:

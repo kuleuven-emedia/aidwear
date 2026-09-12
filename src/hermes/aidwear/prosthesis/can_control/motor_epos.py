@@ -101,28 +101,28 @@ if epos is None:
 # ----------------------------------------------------------------------------
 epos.VCS_OpenDevice.restype = epos_handle
 epos.VCS_OpenDevice.argtypes = [epos_char_p, epos_char_p, epos_char_p, epos_char_p, ctypes.POINTER(epos_uint32)]
-epos.VCS_OpenDeviceDlg.restype = epos_handle
-epos.VCS_OpenDeviceDlg.argtypes = [ctypes.POINTER(epos_uint32)]
+# epos.VCS_OpenDeviceDlg.restype = epos_handle
+# epos.VCS_OpenDeviceDlg.argtypes = [ctypes.POINTER(epos_uint32)]
 epos.VCS_SetProtocolStackSettings.restype = epos_bool
 epos.VCS_SetProtocolStackSettings.argtypes = [epos_handle, epos_uint32, epos_uint32, ctypes.POINTER(epos_uint32)]
 epos.VCS_GetProtocolStackSettings.restype = epos_bool
 epos.VCS_GetProtocolStackSettings.argtypes = [epos_handle, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint32)]
-epos.VCS_FindDeviceCommunicationSettings.restype = epos_bool
-epos.VCS_FindDeviceCommunicationSettings.argtypes = [ctypes.POINTER(epos_handle), epos_char_p, epos_char_p, epos_char_p, epos_char_p, epos_uint16, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint16), epos_int32, ctypes.POINTER(epos_uint32)]
+# epos.VCS_FindDeviceCommunicationSettings.restype = epos_bool
+# epos.VCS_FindDeviceCommunicationSettings.argtypes = [ctypes.POINTER(epos_handle), epos_char_p, epos_char_p, epos_char_p, epos_char_p, epos_uint16, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint16), epos_int32, ctypes.POINTER(epos_uint32)]
 epos.VCS_CloseAllDevices.restype = epos_bool
 epos.VCS_CloseAllDevices.argtypes = [ctypes.POINTER(epos_uint32)]
 epos.VCS_CloseDevice.restype = epos_bool
 epos.VCS_CloseDevice.argtypes = [epos_handle, ctypes.POINTER(epos_uint32)]
 epos.VCS_OpenSubDevice.restype = epos_handle
 epos.VCS_OpenSubDevice.argtypes = [epos_handle, epos_char_p, epos_char_p, ctypes.POINTER(epos_uint32)]
-epos.VCS_OpenSubDeviceDlg.restype = epos_handle
-epos.VCS_OpenSubDeviceDlg.argtypes = [epos_handle, ctypes.POINTER(epos_uint32)]
+# epos.VCS_OpenSubDeviceDlg.restype = epos_handle
+# epos.VCS_OpenSubDeviceDlg.argtypes = [epos_handle, ctypes.POINTER(epos_uint32)]
 epos.VCS_SetGatewaySettings.restype = epos_bool
 epos.VCS_SetGatewaySettings.argtypes = [epos_handle, epos_uint32, ctypes.POINTER(epos_uint16)]
 epos.VCS_GetGatewaySettings.restype = epos_bool
 epos.VCS_GetGatewaySettings.argtypes = [epos_handle, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint32)]
-epos.VCS_FindSubDeviceCommunicationSettings.restype = epos_bool
-epos.VCS_FindSubDeviceCommunicationSettings.argtypes = [epos_handle, ctypes.POINTER(epos_handle), epos_char_p, epos_char_p, epos_uint16, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint16), epos_int32, ctypes.POINTER(epos_uint32)]
+# epos.VCS_FindSubDeviceCommunicationSettings.restype = epos_bool
+# epos.VCS_FindSubDeviceCommunicationSettings.argtypes = [epos_handle, ctypes.POINTER(epos_handle), epos_char_p, epos_char_p, epos_uint16, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint16), epos_int32, ctypes.POINTER(epos_uint32)]
 epos.VCS_CloseAllSubDevices.restype = epos_bool
 epos.VCS_CloseAllSubDevices.argtypes = [epos_handle, ctypes.POINTER(epos_uint32)]
 epos.VCS_CloseSubDevice.restype = epos_bool
@@ -167,10 +167,10 @@ epos.VCS_GetPortName.argtypes = [epos_handle, epos_char_p, epos_uint16, ctypes.P
 # ----------------------------------------------------------------------------
 # Chapter 4.1: General Configuration & Object Dictionary Access
 # ----------------------------------------------------------------------------
-epos.VCS_ImportParameter.restype = epos_bool
-epos.VCS_ImportParameter.argtypes = [epos_handle, epos_uint16, epos_char_p, epos_bool, epos_bool, ctypes.POINTER(epos_uint32)]
-epos.VCS_ExportParameter.restype = epos_bool
-epos.VCS_ExportParameter.argtypes = [epos_handle, epos_uint16, epos_char_p, epos_char_p, epos_char_p, epos_char_p, epos_bool, epos_bool, ctypes.POINTER(epos_uint32)]
+# epos.VCS_ImportParameter.restype = epos_bool
+# epos.VCS_ImportParameter.argtypes = [epos_handle, epos_uint16, epos_char_p, epos_bool, epos_bool, ctypes.POINTER(epos_uint32)]
+# epos.VCS_ExportParameter.restype = epos_bool
+# epos.VCS_ExportParameter.argtypes = [epos_handle, epos_uint16, epos_char_p, epos_char_p, epos_char_p, epos_char_p, epos_bool, epos_bool, ctypes.POINTER(epos_uint32)]
 epos.VCS_SetObject.restype = epos_bool
 epos.VCS_SetObject.argtypes = [epos_handle, epos_uint16, epos_uint16, epos_uint8, ctypes.c_void_p, epos_uint32, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint32)]
 epos.VCS_GetObject.restype = epos_bool
@@ -179,8 +179,8 @@ epos.VCS_Restore.restype = epos_bool
 epos.VCS_Restore.argtypes = [epos_handle, epos_uint16, ctypes.POINTER(epos_uint32)]
 epos.VCS_Store.restype = epos_bool
 epos.VCS_Store.argtypes = [epos_handle, epos_uint16, ctypes.POINTER(epos_uint32)]
-epos.VCS_UpdateFirmware.restype = epos_bool
-epos.VCS_UpdateFirmware.argtypes = [epos_handle, epos_uint16, epos_char_p, epos_bool, epos_bool, epos_bool, ctypes.POINTER(epos_uint32)]
+# epos.VCS_UpdateFirmware.restype = epos_bool
+# epos.VCS_UpdateFirmware.argtypes = [epos_handle, epos_uint16, epos_char_p, epos_bool, epos_bool, epos_bool, ctypes.POINTER(epos_uint32)]
 
 # ----------------------------------------------------------------------------
 # Chapter 4.2: Advanced Motor, Sensor, Safety & Controller Configuration
@@ -569,10 +569,10 @@ epos.VCS_ReadChannelVectorSize.restype = epos_bool
 epos.VCS_ReadChannelVectorSize.argtypes = [epos_handle, epos_uint16, ctypes.POINTER(epos_uint32), ctypes.POINTER(epos_uint32)]
 epos.VCS_ReadChannelDataVector.restype = epos_bool
 epos.VCS_ReadChannelDataVector.argtypes = [epos_handle, epos_uint16, epos_uint8, ctypes.POINTER(epos_uint8), epos_uint32, ctypes.POINTER(epos_uint32)]
-epos.VCS_ShowChannelDataDlg.restype = epos_bool
-epos.VCS_ShowChannelDataDlg.argtypes = [epos_handle, epos_uint16, ctypes.POINTER(epos_uint32)]
-epos.VCS_ExportChannelDataToFile.restype = epos_bool
-epos.VCS_ExportChannelDataToFile.argtypes = [epos_handle, epos_uint16, epos_char_p, ctypes.POINTER(epos_uint32)]
+# epos.VCS_ShowChannelDataDlg.restype = epos_bool
+# epos.VCS_ShowChannelDataDlg.argtypes = [epos_handle, epos_uint16, ctypes.POINTER(epos_uint32)]
+# epos.VCS_ExportChannelDataToFile.restype = epos_bool
+# epos.VCS_ExportChannelDataToFile.argtypes = [epos_handle, epos_uint16, epos_char_p, ctypes.POINTER(epos_uint32)]
 
 # ----------------------------------------------------------------------------
 # Chapter 6.4: Advanced Buffer Functions
