@@ -148,5 +148,35 @@
             "subProcess": true,
             "justMyCode": false
         },
+        {
+            "name": "Test Homing",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "prosthesis_test/test_current_threshold_homing.py",
+            "args": [
+                "--device", "EPOS4",
+                "--protocol", "CAN_OPEN",
+                "--interface", "CAN_mcp251xfd 0",
+                "--port", "CAN0",
+                "--baudrate", "500000",
+                "--node-id", "2",
+                "--method", "-4",
+                "--current-threshold", "1000",
+                "--crawl-speed", "900",
+                "--retreat-speed", "900",
+                "--acceleration", "1000",
+                "--home-offset", "-100000",
+                "--home-position", "0",
+                "--timeout", "20.0",
+                "--poll-interval", "0.05",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
     ]
 }

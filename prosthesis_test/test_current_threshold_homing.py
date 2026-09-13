@@ -20,9 +20,9 @@ Description: Test procedure for current-threshold-based homing mode for power-on
 
 Usage example:
     Method -3:
-        uv run python prosthesis_test/test_current_threshold_homing.py --interface CAN0 --port CAN0 --node-id 1 --method -3 --current-threshold 500 --crawl-speed 60 --home-offset 5000
+        uv run python prosthesis_test/test_current_threshold_homing.py --interface "CAN_mcp251xfd 0" --port CAN0 --node-id 2 --method -3 --current-threshold 500 --crawl-speed 60 --home-offset 5000
     Method -4:
-        uv run python prosthesis_test/test_current_threshold_homing.py --interface CAN0 --port CAN0 --node-id 1 --method -4 --current-threshold 400 --crawl-speed 50 --home-offset 6000
+        uv run python prosthesis_test/test_current_threshold_homing.py --interface "CAN_mcp251xfd 0" --port CAN0 --node-id 2 --method -4 --current-threshold 400 --crawl-speed 50 --home-offset 6000
     Mock:
         uv run python prosthesis_test/test_current_threshold_homing.py --mock --method -3
 """
