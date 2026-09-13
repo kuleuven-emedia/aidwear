@@ -10,16 +10,7 @@ remote_kill_ip: null
 
 logging_spec:
   stream_period_s: 30
-
   stream_hdf5: True
-  stream_csv: False
-  stream_video: False
-  stream_audio: False
-
-  dump_csv: False
-  dump_hdf5: False
-  dump_video: False
-  dump_audio: False
 
 video_codec_config_filepath: null
 audio_codec_config_filepath: null
@@ -29,7 +20,7 @@ producer_specs:
     class: "CliProducer"
     node_id: "cli_control"
     settings:
-      buf_len: 1000
+      buf_len: 1_000
 
 consumer_specs: []
 
@@ -41,11 +32,11 @@ pipeline_specs:
       data_out_spec:
         dt: 0.01
         base_assistance: 50.0
-        is_immediate_mode_switch: False
+        is_immediate_mode_switch: True
         num_majority_vote: 5
         fsm_config_path: null # "run/fsm_config_default.yml"
         niclas:
-          buf_len: 3000
+          buf_len: 3_000
           sampling_rate_hz: 50
           connection_type: "BLE" # BLE or I2C
           is_pelvis_and_feet: False
@@ -69,22 +60,40 @@ pipeline_specs:
           is_hum: False
         motors:
           is_emulate_can: False # creates a virtual CAN bus for testing.
-          buf_len: 3000
-          sampling_rate_hz: 50
+          epos:
+            device: "EPOS4"
+            protocol: "CAN_OPEN"
+            interface: "CAN_mcp251xfd 0"
+            port: "CAN0"
+            baudrate: 500_000
+            timeout_ms: 500
           device_mapping:
             knee:
               can_id: 1
               type: "AK10_9"
+              homing:
+                homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
+                acceleration: 1_000
+                speed_switch: 900
+                speed_index: 900
+                current_threshold_ma: 1_000
+                home_offset_enc_ticks: -100_000
+                home_position_coordinate: 0
             ankle:
               can_id: 2
               type: "AK80_8"
-        pmu:
-          id: 0x1804447D
-          time_threshold: 0.05
-          buf_len: 3000
+              homing:
+                homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
+                acceleration: 1_000
+                speed_switch: 900
+                speed_index: 900
+                current_threshold_ma: 1_000
+                home_offset_enc_ticks: -100_000
+                home_position_coordinate: 0
           sampling_rate_hz: 50
+          buf_len: 3_000
         telemetry:
-          buf_len: 30000
+          buf_len: 30_000
 
       data_in_specs:
         - package: "aidwear.cli"
@@ -96,4 +105,4 @@ pipeline_specs:
             - "event"
             - "safety_stop"
           settings:
-            buf_len: 1000
+            buf_len: 1_000

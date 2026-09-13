@@ -20,7 +20,7 @@ import time
 from hermes.utils.time_utils import get_time
 
 from .abstract_backend import NiclaBackend
-from src.hermes.aidwear.utils.types import NiclaData, NiclaI2cCommand, NiclaPacketMask
+from hermes.aidwear.utils.types import NiclaData, NiclaI2cCommand, NiclaPacketMask
 
 
 class NiclaI2cBackend(NiclaBackend):

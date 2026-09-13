@@ -23,6 +23,11 @@ class MotorId(Enum):
     ANKLE = 2
 
 
+class EncoderId(Enum):
+    KNEE = 0x201
+    ANKLE = 0x202
+
+
 @dataclass
 class ServoReference:
     position: float
@@ -181,12 +186,10 @@ class ServoCanPacketEnum(Enum):
 
 
 @dataclass
-class BatteryData:
+class EncoderData:
     timestamp: float
-    temperature: float
-    voltage: float
-    current: float
-    power: float
+    angle: float
+    is_error: bool
 
 
 @dataclass
@@ -311,9 +314,10 @@ class NextIsPauseSynchronized:
 
 @dataclass
 class ModeContext:
-    bus: can.BusABC
     K: dict[str, ServoImpedanceGains]
-    motor_latest_data: dict[MotorId, deque[ServoMotorData | None]]
+    nicla_latest_data: dict[MotorId, deque[NiclaData]]
+    encoder_latest_data: dict[MotorId, deque[EncoderData]]
+    motor_latest_data: dict[MotorId, deque[ServoMotorData]]
     next_mode: NextModeSynchronized
     next_fatigue: NextFatigueSynchronized
     mode_changed_queue: "Queue[ModeTransition]"
@@ -322,9 +326,10 @@ class ModeContext:
     motor_command_queue: "Queue[MotorCommand]"
     is_stop_new_data_event: _Event
     is_keep_data_event: _Event
+    config_manager: ConfigManager
+
     token: int  # arbitrary data passed from one state machine to another [0-4]
     factor_prev: Tuple[float, float]
-    config_manager: ConfigManager
 
 
 @dataclass
@@ -483,6 +488,6 @@ class WalkingParameters:
 
 
 @dataclass
-class ExoMotorMapping:
+class ProsthesisMotorMapping:
     knee: str
     ankle: str

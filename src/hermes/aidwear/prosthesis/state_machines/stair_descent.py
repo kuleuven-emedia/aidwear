@@ -11,7 +11,6 @@ from hermes.utils.time_utils import get_time
 from scipy.interpolate import CubicHermiteSpline
 
 from .base import ProsthesisStateMachine
-from ..can_control.motor_epos import can_set_position_impedance, can_set_torque
 from ..utils.types import (
     ModeContext,
     ServoImpedanceGains,

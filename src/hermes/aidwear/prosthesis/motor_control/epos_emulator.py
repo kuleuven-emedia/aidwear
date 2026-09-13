@@ -1,10 +1,10 @@
 """
-Filename: hermes/revalexo/exo/can_control/emulator_cubemars.py
+Filename: hermes/aidwear/prosthesis/motor_control/epos_emulator.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-01-02
 Version: 1.0
-Description: Emulator that mimicks inbound CubeMars motor messages
-    to locally test the complete exoskeleton system on a local device.
+Description: Emulator that mimicks inbound Maxon EPOS motor messages
+    to locally test the complete prosthesis system on a local device.
 """
 
 import struct
@@ -21,6 +21,8 @@ class CanEmulator:
         is_stop_new_data_event: _Event,
         sampling_rate_hz: int = 1,
     ):
+        raise(NotImplementedError)
+
         self._motor_ids = list(map(lambda m: m["can_id"]+10496, motor_mapping.values()))
         self._is_stop_new_data_event = is_stop_new_data_event
         self._sample_period = 1 / sampling_rate_hz

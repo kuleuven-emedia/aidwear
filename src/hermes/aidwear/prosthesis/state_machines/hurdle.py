@@ -11,7 +11,6 @@ from statemachine import Event, State, StateMachine
 from hermes.utils.time_utils import get_time
 
 from .base import ProsthesisStateMachine
-from ..can_control.motor_epos import can_set_position_impedance
 from ..utils.types import (
     ModeContext,
     ModeEnum,

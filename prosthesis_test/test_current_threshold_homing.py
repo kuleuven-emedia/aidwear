@@ -30,7 +30,6 @@ Usage example:
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import os
 import sys
 import time
@@ -44,7 +43,7 @@ if _REPO_ROOT not in sys.path:
 if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 
-from hermes.aidwear.prosthesis.can_control.motor_epos import (
+from hermes.aidwear.prosthesis.motor_control.epos_commands import (
     open_device,
     close_device,
     set_protocol_stack_settings,
@@ -66,39 +65,14 @@ from hermes.aidwear.prosthesis.can_control.motor_epos import (
     get_current_avg,
     get_state,
     is_fault,
+)
+from hermes.aidwear.prosthesis.utils.types import (
     EposDevice,
     EposProtocolStack,
     HomingMethod,
     MotorId,
 )
-
-
-@dataclass
-class HomingConfig:
-    """Configuration parameters for current-threshold homing calibration."""
-
-    device_name: EposDevice = EposDevice.EPOS4
-    protocol_stack_name: EposProtocolStack = EposProtocolStack.CAN_OPEN
-    interface_name: str = "CAN_mcp251xfd 0"
-    port_name: str = "CAN0"
-    baudrate: int = 500_000
-    timeout_ms: int = 500
-    node_id: int = MotorId.ANKLE.value  # 1: Knee, 2: Ankle
-
-    # Homing method: -3 (positive speed) or -4 (negative speed)
-    homing_method: HomingMethod = HomingMethod.CURRENT_THRESHOLD_POSITIVE_SPEED
-    acceleration: int = 1000  # Homing acceleration in rpm/s (0x609A)
-    speed_switch: int = 60  # Crawl velocity toward hardstop in rpm (0x6099-01)
-    speed_index: int = 60  # Speed for movement to home position in rpm (0x6099-02)
-    current_threshold: int = 500  # Stall current limit in mA (0x2080 / 0x30B1)
-    home_offset: int = 5000  # Distance in encoder counts from hardstop (0x607C)
-    home_position: int = 0  # Coordinate assigned to home position (0x30B0)
-
-    # Execution safeguards
-    timeout_s: float = 20.0  # Max timeout waiting for homing attained
-    poll_interval_s: float = 0.05  # Telemetry sampling period during homing (20 Hz)
-    log_telemetry: bool = True  # Print live telemetry during homing
-    mock_mode: bool = False  # Mock simulation mode for testing without hardware
+from hermes.aidwear.prosthesis.motor_control.types import HomingConfig, EposDeviceConfig
 
 
 class MockHomingExecutor:
@@ -139,7 +113,7 @@ class MockHomingExecutor:
             # Hitting hardstop: velocity stops, current rises above threshold
             self._hardstop_hit = True
             self.vel = 0
-            self.curr = self.config.current_threshold + 120
+            self.curr = self.config.current_threshold_ma + 120
         elif elapsed < 4.0:
             # Drive detected hardstop and moves to home_position via home_offset
             # Moving in opposite direction to relieve load
@@ -151,15 +125,20 @@ class MockHomingExecutor:
             # Homing attained at home_position
             self.vel = 0
             self.curr = 45
-            self.pos = self.config.home_position
+            self.pos = self.config.home_position_coordinate
             self.attained = True
 
         return self.pos, self.vel, self.curr, self.attained, self.error
 
 
 def run_current_threshold_homing(
-    config: HomingConfig,
-    existing_handle: Optional[Any] = None,
+    node_id: MotorId,
+    device_config: DeviceConfig,
+    homing_config: HomingConfig,
+    poll_interval_s: int,
+    is_mock: bool,
+    timeout_s: float,
+    is_log_telemetry: bool,
 ) -> Dict[str, Any]:
     """
     Executes current-threshold-based homing calibration for power-on zero reference.
@@ -180,34 +159,28 @@ def run_current_threshold_homing(
     print("=" * 72)
     print(" MAXON EPOS4 CURRENT-THRESHOLD HOMING CALIBRATION")
     print("=" * 72)
-    print(f" Node ID           : {config.node_id}")
-    print(
-        f" Interface / Port  : {config.interface_name} / {config.port_name} ({config.baudrate} bps)"
-    )
-    print(
-        f" Homing Method     : {config.homing_method.name} ({config.homing_method.value})"
-    )
-    print(f" Crawl Speed       : {config.speed_switch} RPM toward hardstop")
-    print(f" Speed to Home Pos : {config.speed_index} RPM")
-    print(f" Acceleration      : {config.acceleration} RPM/s")
-    print(f" Current Threshold : {config.current_threshold} mA")
-    print(f" Home Offset       : {config.home_offset} counts (retreat from hardstop)")
-    print(f" Home Position     : {config.home_position} counts")
-    print(f" Timeout Limit     : {config.timeout_s:.1f} s")
-    print(
-        f" Execution Mode    : {'MOCK SIMULATION' if config.mock_mode else 'PHYSICAL HARDWARE'}"
-    )
+    print(f" Node ID           : {node_id}")
+    print(f" Interface / Port  : {device_config.interface} / {device_config.port} ({device_config.baudrate} bps)")
+    print(f" Homing Method     : {homing_config.homing_method.name} ({homing_config.homing_method.value})")
+    print(f" Crawl Speed       : {homing_config.speed_switch} RPM toward hardstop")
+    print(f" Speed to Home Pos : {homing_config.speed_index} RPM")
+    print(f" Acceleration      : {homing_config.acceleration} RPM/s")
+    print(f" Current Threshold : {homing_config.current_threshold_ma} mA")
+    print(f" Home Offset       : {homing_config.home_offset_enc_ticks} counts (retreat from hardstop)")
+    print(f" Home Position     : {homing_config.home_position_coordinate} counts")
+    print(f" Timeout Limit     : {timeout_s:.1f} s")
+    print(f" Execution Mode    : {'MOCK SIMULATION' if is_mock else 'PHYSICAL HARDWARE'}")
     print("=" * 72)
 
-    handle = existing_handle
-    owns_handle = existing_handle is None
+    handle = None
+    owns_handle = handle is None
     peak_current = 0
     hardstop_pos = None
     start_pos = 0
     t0 = time.time()
     telemetry_samples = []
 
-    if config.mock_mode:
+    if is_mock:
         mock = MockHomingExecutor(config)
         mock.start()
         print("\n[MOCK] Initialized mock simulation executor.")
@@ -216,7 +189,7 @@ def run_current_threshold_homing(
         )
         time.sleep(0.2)
         print(
-            f"[MOCK] Active Homing Mode: Method {config.homing_method.value} started.\n"
+            f"[MOCK] Active Homing Mode: Method {homing_config.homing_method.value} started.\n"
         )
 
         print(
@@ -229,10 +202,10 @@ def run_current_threshold_homing(
             pos, vel, curr, attained, error = mock.step()
             peak_current = max(peak_current, abs(curr))
 
-            if config.log_telemetry:
+            if is_log_telemetry:
                 status_str = "Homing Search (Crawl)"
                 if mock._hardstop_hit and not attained:
-                    status_str = f"Threshold Hit! Retreating ({config.speed_index} RPM)"
+                    status_str = f"Threshold Hit! Retreating ({homing_config.speed_index} RPM)"
                 elif attained:
                     status_str = "HOMING ATTAINED"
                 print(
@@ -254,12 +227,12 @@ def run_current_threshold_homing(
                     "samples_count": len(telemetry_samples),
                 }
 
-            if elapsed > config.timeout_s:
+            if elapsed > timeout_s:
                 raise TimeoutError(
                     f"[MOCK] Homing timed out after {elapsed:.1f} s without attaining home."
                 )
 
-            time.sleep(config.poll_interval_s)
+            time.sleep(poll_interval_s)
 
     # -------------------------------------------------------------------------
     # Physical Hardware Execution
@@ -268,51 +241,51 @@ def run_current_threshold_homing(
         # Step 1: Open device communication
         if handle is None:
             print(
-                f"\n[1/6] Opening communication channel to {config.device_name.value.decode()}..."
+                f"\n[1/6] Opening communication channel to {device_config.device.value.decode()}..."
             )
             handle = open_device(
-                config.device_name,
-                config.protocol_stack_name,
-                config.interface_name,
-                config.port_name,
+                device_config.device,
+                device_config.protocol,
+                device_config.interface,
+                device_config.port,
             )
-            set_protocol_stack_settings(handle, config.baudrate, config.timeout_ms)
+            set_protocol_stack_settings(handle, device_config.baudrate, device_config.timeout_ms)
             print(f"      Connected successfully. Device handle: {handle}")
 
         # Step 2: Clear faults & verify drive status
-        print(f"\n[2/6] Checking drive status on Node {config.node_id}...")
-        if is_fault(handle, config.node_id):
+        print(f"\n[2/6] Checking drive status on Node {node_id}...")
+        if is_fault(handle, node_id):
             print("      Active fault detected on drive. Clearing fault...")
-            clear_fault(handle, config.node_id)
+            clear_fault(handle, node_id)
             time.sleep(0.05)
 
-        start_pos = get_position(handle, config.node_id)
-        start_curr = get_current(handle, config.node_id)
+        start_pos = get_position(handle, node_id)
+        start_curr = get_current(handle, node_id)
         print(
             f"      Initial State: Position = {start_pos} QC, Current = {start_curr} mA"
         )
 
         # Step 3: Transition to Operation Enable
         print("\n[3/6] Transitioning EPOS state machine to 'Operation Enable'...")
-        set_enable_state(handle, config.node_id)
+        set_enable_state(handle, node_id)
         time.sleep(0.05)
 
         # Step 4: Configure homing parameters
         print("\n[4/6] Writing homing parameters to EPOS dictionary...")
         hm_set_homing_parameter(
             handle=handle,
-            motor_id=config.node_id,
-            acceleration=config.acceleration,
-            speed_switch=config.speed_switch,
-            speed_index=config.speed_index,
-            offset=config.home_offset,
-            current_threshold=config.current_threshold,
-            home_position=config.home_position,
+            motor_id=node_id,
+            acceleration=homing_config.acceleration,
+            speed_switch=homing_config.speed_switch,
+            speed_index=homing_config.speed_index,
+            offset=homing_config.home_offset_enc_ticks,
+            current_threshold=homing_config.current_threshold_ma,
+            home_position=homing_config.home_position_coordinate,
         )
 
         # Read back parameters for verification
         acc, spd_sw, spd_idx, off, thresh, h_pos = hm_get_homing_parameter(
-            handle, config.node_id
+            handle, node_id
         )
         print("      Homing parameters verified:")
         print(f"        Acceleration     : {acc} RPM/s")
@@ -324,13 +297,13 @@ def run_current_threshold_homing(
 
         # Step 5: Activate Homing Mode & start search
         print(
-            f"\n[5/6] Activating Homing Mode (Method {config.homing_method.value})..."
+            f"\n[5/6] Activating Homing Mode (Method {homing_config.homing_method.value})..."
         )
-        activate_homing_mode(handle, config.node_id)
+        activate_homing_mode(handle, node_id)
         time.sleep(0.02)
 
-        print(f"      Initiating hardstop search ({config.homing_method.name})...")
-        hm_find_home(handle, config.node_id, config.homing_method)
+        print(f"      Initiating hardstop search ({homing_config.homing_method.name})...")
+        hm_find_home(handle, node_id, homing_config.homing_method)
 
         # Step 6: Real-time telemetry monitoring loop
         print(
@@ -346,12 +319,12 @@ def run_current_threshold_homing(
 
         while True:
             elapsed = time.time() - t0
-            cur_pos = get_position(handle, config.node_id)
-            cur_vel = get_velocity(handle, config.node_id)
-            cur_curr = get_current(handle, config.node_id)
+            cur_pos = get_position(handle, node_id)
+            cur_vel = get_velocity(handle, node_id)
+            cur_curr = get_current(handle, node_id)
             peak_current = max(peak_current, abs(cur_curr))
 
-            attained, homing_err = hm_get_state(handle, config.node_id)
+            attained, homing_err = hm_get_state(handle, node_id)
 
             if homing_err:
                 raise RuntimeError(
@@ -359,7 +332,7 @@ def run_current_threshold_homing(
                 )
 
             # Detect threshold event
-            if abs(cur_curr) >= config.current_threshold and not threshold_detected:
+            if abs(cur_curr) >= homing_config.current_threshold_ma and not threshold_detected:
                 threshold_detected = True
                 hardstop_pos = cur_pos
 
@@ -369,7 +342,7 @@ def run_current_threshold_homing(
             elif attained:
                 status_msg = "HOMING ATTAINED"
 
-            if config.log_telemetry:
+            if is_log_telemetry:
                 print(
                     f"{elapsed:8.2f} | {cur_pos:14d} | {cur_vel:14d} | {cur_curr:12d} | {status_msg}"
                 )
@@ -385,18 +358,18 @@ def run_current_threshold_homing(
 
             if attained:
                 print("-" * 72)
-                final_pos = get_position(handle, config.node_id)
-                final_curr = get_current(handle, config.node_id)
+                final_pos = get_position(handle, node_id)
+                final_curr = get_current(handle, node_id)
                 print(f"[SUCCESS] Homing procedure completed in {elapsed:.2f} s.")
                 print(f"          Starting Position : {start_pos} QC")
                 if hardstop_pos is not None:
                     print(f"          Hardstop Contact  : {hardstop_pos} QC")
                 print(
-                    f"          Final Position    : {final_pos} QC (Target: {config.home_position})"
+                    f"          Final Position    : {final_pos} QC (Target: {homing_config.home_position_coordinate})"
                 )
                 print(f"          Final Current     : {final_curr} mA (Idle)")
                 print(
-                    f"          Peak Sensed Curr  : {peak_current} mA (Threshold: {config.current_threshold} mA)"
+                    f"          Peak Sensed Curr  : {peak_current} mA (Threshold: {homing_config.current_threshold_ma} mA)"
                 )
 
                 return {
@@ -409,12 +382,12 @@ def run_current_threshold_homing(
                     "samples_count": len(telemetry_samples),
                 }
 
-            if elapsed > config.timeout_s:
+            if elapsed > timeout_s:
                 raise TimeoutError(
                     f"Homing procedure timed out after {elapsed:.1f} s without reaching 'Homing Attained'."
                 )
 
-            time.sleep(config.poll_interval_s)
+            time.sleep(poll_interval_s)
 
     except KeyboardInterrupt:
         print(
@@ -422,8 +395,8 @@ def run_current_threshold_homing(
         )
         if handle:
             try:
-                hm_stop_homing(handle, config.node_id)
-                set_quick_stop_state(handle, config.node_id)
+                hm_stop_homing(handle, node_id)
+                set_quick_stop_state(handle, node_id)
             except Exception as e:
                 print(f"Error during quick stop: {e}")
         raise
@@ -432,7 +405,7 @@ def run_current_threshold_homing(
         print(f"\n[ERROR] Calibration failed: {exc}")
         if handle:
             try:
-                hm_stop_homing(handle, config.node_id)
+                hm_stop_homing(handle, node_id)
             except Exception:
                 pass
         raise
@@ -444,7 +417,7 @@ def run_current_threshold_homing(
                 "\n[CLEANUP] Disabling motor power stage and closing communication..."
             )
             try:
-                set_disable_state(handle, config.node_id)
+                set_disable_state(handle, node_id)
             except Exception as e:
                 print(f"Warning: Failed to set disable state: {e}")
             try:
@@ -454,12 +427,12 @@ def run_current_threshold_homing(
                 print(f"Warning: Failed to close device: {e}")
 
 
-def parse_args() -> HomingConfig:
-    """Parses command line arguments and constructs HomingConfig."""
+def main():
     parser = argparse.ArgumentParser(
         description="EPOS4 Current-Threshold-Based Homing Calibration Test Procedure",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+
     # Hardware & Communication
     parser.add_argument(
         "--device",
@@ -565,36 +538,36 @@ def parse_args() -> HomingConfig:
     device_enum = EposDevice[args.device]
     protocol_enum = EposProtocolStack[args.protocol]
     method = HomingMethod(args.method)
+    node_id = MotorId(args.node_id)
 
-    retreat_spd = (
-        args.retreat_speed if args.retreat_speed is not None else args.crawl_speed
+    device_config = EposDeviceConfig(
+        device=device_enum,
+        protocol=protocol_enum,
+        interface=args.interface,
+        port=args.port,
+        baudrate=args.baudrate,
     )
 
-    return HomingConfig(
-        device_name=device_enum,
-        protocol_stack_name=protocol_enum,
-        interface_name=args.interface,
-        port_name=args.port,
-        baudrate=args.baudrate,
-        node_id=args.node_id,
+    homing_config = HomingConfig(
         homing_method=method,
         acceleration=args.acceleration,
         speed_switch=args.crawl_speed,
-        speed_index=retreat_spd,
-        current_threshold=args.current_threshold,
-        home_offset=args.home_offset,
-        home_position=args.home_position,
-        timeout_s=args.timeout,
-        poll_interval_s=args.poll_interval,
-        log_telemetry=not args.quiet,
-        mock_mode=args.mock,
+        speed_index=args.retreat_speed if args.retreat_speed is not None else args.crawl_speed,
+        current_threshold_ma=args.current_threshold,
+        home_offset_enc_ticks=args.home_offset,
+        home_position_coordinate=args.home_position,
     )
 
-
-def main():
-    config = parse_args()
     try:
-        results = run_current_threshold_homing(config)
+        results = run_current_threshold_homing(
+            node_id=node_id,
+            device_config=device_config,
+            homing_config=homing_config,
+            poll_interval_s=args.poll_interval,
+            is_mock=args.mock,
+            timeout_s=args.timeout,
+            is_log_telemetry=not args.quiet,
+        )
         sys.exit(0 if results.get("success") else 1)
     except Exception as e:
         print(f"\nExecution aborted with error: {e}", file=sys.stderr)

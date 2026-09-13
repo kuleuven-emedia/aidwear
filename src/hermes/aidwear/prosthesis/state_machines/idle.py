@@ -8,7 +8,6 @@ import numpy as np
 from statemachine import Event, State, StateMachine
 
 from .base import ProsthesisStateMachine
-from ..can_control.motor_epos import can_set_torque
 from ..utils.types import (
     ModeContext,
     ServoMotorEnum,
@@ -38,21 +37,8 @@ class Idle(StateMachine, ProsthesisStateMachine):
     # Actions.
     def on_enter_idle(self):
         self._ctx.factor_prev = (0.0, 0.0)
-        can_set_torque(
-            motor_id=MotorId.KNEE,
-            torque=0.0,
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._ctx.motor_command_queue,
-            is_keep_data_event=self._ctx.is_keep_data_event,
-        )
-        can_set_torque(
-            motor_id=MotorId.ANKLE,
-            torque=0.0,
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._ctx.motor_command_queue,
-            is_keep_data_event=self._ctx.is_keep_data_event,
-        )
         self._i += 1
+        # TODO: add what to do in Idle.
 
     def update_sensor_values(
         self,

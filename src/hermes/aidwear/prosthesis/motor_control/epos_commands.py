@@ -1,8 +1,8 @@
 """
-Filename: hermes/aidwear/prosthesis/can_control/motor_epos.py
+Filename: hermes/aidwear/prosthesis/motor_control/epos_commands.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-09-11
-Version: 2.0
+Version: 1.0
 Description: Python ctypes wrapper and communication primitives for Maxon EPOS motor controllers.
     Implements complete communication primitives, configuration, operation, and low-layer CANopen
     interfaces extracted from the official Maxon EPOS Command Library Documentation.
@@ -629,16 +629,16 @@ def check_error(success: Union[bool, int], error_code: epos_uint32, context_msg:
 # ----------------------------------------------------------------------------
 
 def open_device(
-    device_name: Union[EposDevice, str, bytes],
-    protocol_stack_name: Union[EposProtocolStack, str, bytes],
-    interface_name: Union[str, bytes],
-    port_name: Union[str, bytes],
+    device: Union[EposDevice, str, bytes],
+    protocol: Union[EposProtocolStack, str, bytes],
+    interface: Union[str, bytes],
+    port: Union[str, bytes],
 ) -> epos_handle:
     """Opens the communication port to send and receive commands to/from EPOS."""
-    d_name = device_name.value if isinstance(device_name, EposDevice) else _to_bytes(device_name)
-    p_name = protocol_stack_name.value if isinstance(protocol_stack_name, EposProtocolStack) else _to_bytes(protocol_stack_name)
-    i_name = _to_bytes(interface_name)
-    port = _to_bytes(port_name)
+    d_name = device.value if isinstance(device, EposDevice) else _to_bytes(device)
+    p_name = protocol.value if isinstance(protocol, EposProtocolStack) else _to_bytes(protocol)
+    i_name = _to_bytes(interface)
+    port = _to_bytes(port)
 
     err = epos_uint32()
     handle = epos.VCS_OpenDevice(d_name, p_name, i_name, port, ctypes.byref(err))

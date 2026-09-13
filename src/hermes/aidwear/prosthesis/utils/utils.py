@@ -10,7 +10,9 @@ import os
 
 
 def config_can_linux(channel: str = "can0") -> None:
-    os.system(f"sudo ip link set {channel} up type can bitrate 1000000")
+    os.system("sudo ip link set can0 down")
+    os.system(f"sudo ip link set {channel} type can bitrate 500000 dbitrate 500000 fd on loopback off restart-ms 1000 berr-reporting on")
+    os.system("sudo ip link set can0 up")
     os.system(f"sudo ifconfig {channel} txqueuelen 65536")
 
 

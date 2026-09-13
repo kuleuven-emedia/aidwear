@@ -27,7 +27,7 @@ from .controller import ProsthesisHandler
 from .data_container import ProsthesisDataContainer
 from .utils.types import (
     CLASS_TO_MODE,
-    BatteryData,
+    EncoderData,
     FatigueCommandSource,
     IntentCommandSource,
     ModeTransition,
@@ -63,7 +63,6 @@ class ProsthesisPipeline(Pipeline):
     ):
         niclas_spec: dict = data_out_spec["niclas"]
         motors_spec: dict = data_out_spec["motors"]
-        pmu_spec: dict = data_out_spec["pmu"]
         telemetry_spec: dict = data_out_spec["telemetry"]
         dt: float = data_out_spec["dt"]
         base_assistance: float = data_out_spec["base_assistance"]
@@ -111,8 +110,8 @@ class ProsthesisPipeline(Pipeline):
         self._phase_estimate_queue: Queue[PhaseEstimate] = Queue()
         self._motor_command_queue: Queue[MotorCommand] = Queue()
         self._nicla_data_queue: Queue[tuple[str, float, NiclaData]] = Queue()
+        self._encoder_data_queue: Queue[tuple[str, EncoderData]] = Queue()
         self._motor_data_queue: Queue[tuple[str, ServoMotorData]] = Queue()
-        self._battery_data_queue: Queue[tuple[str, BatteryData]] = Queue()
 
         # Shared controls for exo handler.
         self._next_mode = NextModeSynchronized()
@@ -130,7 +129,7 @@ class ProsthesisPipeline(Pipeline):
         telemetry_kwargs = {
             "nicla_data_queue": self._nicla_data_queue,
             "motor_data_queue": self._motor_data_queue,
-            "battery_data_queue": self._battery_data_queue,
+            "encoder_data_queue": self._encoder_data_queue,
             "mode_changed_queue": self._mode_changed_queue,
             "state_changed_queue": self._state_changed_queue,
             "phase_estimate_queue": self._phase_estimate_queue,
@@ -160,7 +159,6 @@ class ProsthesisPipeline(Pipeline):
             kwargs={
                 "niclas": niclas_spec,
                 "motors": motors_spec,
-                "pmu": pmu_spec,
                 "fsm_config_path": fsm_config_path,
                 "output_dir": logging_spec.log_dir,
                 **telemetry_kwargs,
@@ -177,7 +175,6 @@ class ProsthesisPipeline(Pipeline):
         data_out_spec = {
             "niclas": niclas_spec,
             "motors": motors_spec,
-            "pmu": pmu_spec,
             "telemetry": telemetry_spec,
         }
 
@@ -239,6 +236,8 @@ class ProsthesisPipeline(Pipeline):
                 self._next_fatigue.source.value = FatigueCommandSource.AI.value
 
     def _generate_data(self) -> None:
+        # TODO: pop data from IPC queues into HERMES.
+
         # Motor data.
         motor_data: dict[str, tuple[str, list[ServoMotorData]]] = {
             MotorId(motor_spec["can_id"]): (motor_name, [])
@@ -274,30 +273,30 @@ class ProsthesisPipeline(Pipeline):
                 self._publish(process_time_s=get_time(), new_data=output)
 
         # Battery data.
-        battery_data: list[BatteryData] = []
-        while not self._battery_data_queue.empty():
-            battery_data.append(self._battery_data_queue.get_nowait())
-        if battery_data:
+        encoder_data: list[EncoderData] = []
+        while not self._encoder_data_queue.empty():
+            encoder_data.append(self._encoder_data_queue.get_nowait())
+        if encoder_data:
             output = {
                 "power_monitor": {
                     "toa_s": np.array(
-                        [list(map(lambda m: m.timestamp, battery_data))],
+                        [list(map(lambda m: m.timestamp, encoder_data))],
                         dtype=np.float64,
                     ).transpose((1, 0)),
                     "temperature": np.array(
-                        [list(map(lambda m: m.temperature, battery_data))],
+                        [list(map(lambda m: m.temperature, encoder_data))],
                         dtype=np.float32,
                     ).transpose((1, 0)),
                     "voltage": np.array(
-                        [list(map(lambda m: m.voltage, battery_data))],
+                        [list(map(lambda m: m.voltage, encoder_data))],
                         dtype=np.float32,
                     ).transpose((1, 0)),
                     "current": np.array(
-                        [list(map(lambda m: m.current, battery_data))],
+                        [list(map(lambda m: m.current, encoder_data))],
                         dtype=np.float32,
                     ).transpose((1, 0)),
                     "power": np.array(
-                        [list(map(lambda m: m.power, battery_data))],
+                        [list(map(lambda m: m.power, encoder_data))],
                         dtype=np.float32,
                     ).transpose((1, 0)),
                 }
@@ -430,6 +429,7 @@ class ProsthesisPipeline(Pipeline):
         if (
             self._is_finished_event.is_set()
             and self._motor_data_queue.empty()
+            and self._encoder_data_queue.empty()
             and self._nicla_data_queue.empty()
             and self._mode_changed_queue.empty()
             and self._state_changed_queue.empty()
