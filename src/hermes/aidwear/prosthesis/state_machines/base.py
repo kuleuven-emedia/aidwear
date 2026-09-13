@@ -25,10 +25,12 @@ class ProsthesisStateMachine:
         thigh_right_roll: float = np.nan,
         knee_left_roll: float = np.nan,
         knee_right_roll: float = np.nan,
-        thigh_left_gyr: int = 0,
-        thigh_right_gyr: int = 0,
-        knee_left_gyr: int = 0,
-        knee_right_gyr: int = 0,
+        thigh_left_gyr: float = np.nan,
+        thigh_right_gyr: float = np.nan,
+        knee_left_gyr: float = np.nan,
+        knee_right_gyr: float = np.nan,
+        knee_enc_angle: float = np.nan,
+        ankle_enc_angle: float = np.nan,
         dt: float = 0.01,
     ) -> None:
         """Does state machine dependent update with new sensor readings."""

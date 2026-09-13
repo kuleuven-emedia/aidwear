@@ -198,8 +198,7 @@ class ServoMotorData:
     position: float
     velocity: float
     current: float
-    temperature: int
-    error: bytes
+    error: bool
 
 
 class StateEnum:
@@ -270,6 +269,24 @@ class MotorCommand:
     command_data: bytes
     control_mode: int
     log_data: bytes
+
+
+class CalibrationEventType(Enum):
+    NICLA = "nicla"
+    ENCODER = "encoder"
+
+
+@dataclass
+class CalibrationEvent:
+    timestamp: float
+    sensor_type: CalibrationEventType
+    offsets: dict[str, float]
+
+
+@dataclass
+class AbsoluteEncoderOffset:
+    reference: float
+    offset: float
 
 
 @dataclass

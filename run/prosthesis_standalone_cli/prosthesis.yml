@@ -74,11 +74,12 @@ pipeline_specs:
               homing:
                 homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
                 acceleration: 1_000
-                speed_switch: 900
-                speed_index: 900
+                speed_switch: 100
+                speed_index: 100
                 current_threshold_ma: 1_000
-                home_offset_enc_ticks: -100_000
+                home_offset_enc_ticks: -10_000
                 home_position_coordinate: 0
+              absolute_encoder_reference: 180.0
             ankle:
               can_id: 2
               type: "AK80_8"
@@ -90,6 +91,7 @@ pipeline_specs:
                 current_threshold_ma: 1_000
                 home_offset_enc_ticks: -100_000
                 home_position_coordinate: 0
+              absolute_encoder_reference: 90.0
           sampling_rate_hz: 50
           buf_len: 3_000
         telemetry:

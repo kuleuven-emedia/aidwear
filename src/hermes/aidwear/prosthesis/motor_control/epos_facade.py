@@ -27,6 +27,7 @@ from hermes.aidwear.prosthesis.utils.types import (
     EposProtocolStack,
     HomingMethod,
     MotorId,
+    ServoMotorData,
 )
 
 from hermes.aidwear.prosthesis.motor_control.epos_commands import (
@@ -63,6 +64,9 @@ __all__ = [
     'start_homing',
     'stop_homing',
     'quick_stop',
+    'get_motor_data',
+    'get_homing_state',
+    'wait_for_homing',
 ]
 
 def init(
@@ -149,87 +153,6 @@ def start_homing(
     print(f"Initiating hardstop search ({config.homing_method.name})...", flush=True)
 
     hm_find_home(handle, motor_id, config.homing_method)
-    pass
-
-    # TODO: wait until it reached home.
-
-
-    # TODO: wrap into a subprocess or scheduled AsyncIO routine that continuously probes and captures the motors data.
-    #   Move into data reading subprocess / coroutine.
-    # # Step 6: Real-time telemetry monitoring loop
-    # peak_current = 0
-    # hardstop_pos = None
-    # start_pos = 0
-    # t0 = get_time()
-    # telemetry_samples = []
-    # threshold_detected = False
-    # t0 = get_time()
-    # while True:
-    #     elapsed = get_time() - t0
-    #     cur_pos = get_position(handle, config.node_id)
-    #     cur_vel = get_velocity(handle, config.node_id)
-    #     cur_curr = get_current(handle, config.node_id)
-    #     peak_current = max(peak_current, abs(cur_curr))
-
-    #     attained, homing_err = hm_get_state(handle, config.node_id)
-
-    #     if homing_err:
-    #         raise RuntimeError(
-    #             f"EPOS reported Homing Error flag! Position: {cur_pos}, Current: {cur_curr} mA"
-    #         )
-
-    #     # Detect threshold event
-    #     if abs(cur_curr) >= config.current_threshold and not threshold_detected:
-    #         threshold_detected = True
-    #         hardstop_pos = cur_pos
-
-    #     status_msg = "Searching (Crawl)"
-    #     if threshold_detected and not attained:
-    #         status_msg = f"Threshold Hit ({cur_curr} mA) -> Moving to Home Pos"
-    #     elif attained:
-    #         status_msg = "HOMING ATTAINED"
-
-    #     if config.log_telemetry:
-    #         print(
-    #             f"{elapsed:8.2f} | {cur_pos:14d} | {cur_vel:14d} | {cur_curr:12d} | {status_msg}"
-    #         )
-
-    #     telemetry_samples.append(
-    #         {
-    #             "time": elapsed,
-    #             "pos": cur_pos,
-    #             "vel": cur_vel,
-    #             "curr": cur_curr,
-    #         }
-    #     )
-
-    #     if attained:
-    #         print("-" * 72)
-    #         final_pos = get_position(handle, config.node_id)
-    #         final_curr = get_current(handle, config.node_id)
-    #         print(f"[SUCCESS] Homing procedure completed in {elapsed:.2f} s.")
-    #         print(f"          Starting Position : {start_pos} QC")
-    #         if hardstop_pos is not None:
-    #             print(f"          Hardstop Contact  : {hardstop_pos} QC")
-    #         print(
-    #             f"          Final Position    : {final_pos} QC (Target: {config.home_position})"
-    #         )
-    #         print(f"          Final Current     : {final_curr} mA (Idle)")
-    #         print(
-    #             f"          Peak Sensed Curr  : {peak_current} mA (Threshold: {config.current_threshold} mA)"
-    #         )
-
-    #         return {
-    #             "success": True,
-    #             "start_position": start_pos,
-    #             "hardstop_position": hardstop_pos,
-    #             "final_position": final_pos,
-    #             "peak_current_ma": peak_current,
-    #             "elapsed_time_s": elapsed,
-    #             "samples_count": len(telemetry_samples),
-    #         }
-
-    #     time.sleep(config.poll_interval_s)
 
 
 def stop_homing(
@@ -244,3 +167,40 @@ def quick_stop(
     motor_id: MotorId,
 ):
     set_quick_stop_state(handle, motor_id)
+
+
+def get_motor_data(
+    handle: epos_handle,
+    motor_id: MotorId,
+) -> ServoMotorData:
+    """Captures the current motor state: position, velocity, and current."""
+    timestamp = get_time()
+    cur_pos = get_position(handle, motor_id)
+    cur_vel = get_velocity(handle, motor_id)
+    cur_curr = get_current(handle, motor_id)
+    fault = is_fault(handle, motor_id)
+
+    return ServoMotorData(
+        timestamp=timestamp,
+        position=float(cur_pos),
+        velocity=float(cur_vel),
+        current=float(cur_curr),
+        error=fault,
+    )
+
+
+def get_homing_state(
+    handle: epos_handle,
+    motor_id: MotorId,
+) -> tuple[bool, bool]:
+    """Returns (is_homing_attained, is_homing_error)."""
+    return hm_get_state(handle, motor_id)
+
+
+def wait_for_homing(
+    handle: epos_handle,
+    motor_id: MotorId,
+    timeout_ms: int = 30_000,
+) -> bool:
+    """Blocks until homing attained bit is set or timeout occurs."""
+    return hm_wait_for_homing(handle, motor_id, timeout_ms)

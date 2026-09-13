@@ -23,7 +23,7 @@ class CanBackend(can.Listener):
         is_keep_data_event: _Event,
         is_stop_new_data_event: _Event,
         encoder_latest_data: dict[EncoderId, deque[EncoderData]],
-        encoder_data_queue: "Queue[tuple[str, EncoderData]]",
+        encoder_data_queue: "Queue[tuple[EncoderId, EncoderData]]",
     ):
         super().__init__()
         self._is_keep_data_event = is_keep_data_event

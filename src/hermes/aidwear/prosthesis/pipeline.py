@@ -27,6 +27,8 @@ from .controller import ProsthesisHandler
 from .data_container import ProsthesisDataContainer
 from .utils.types import (
     CLASS_TO_MODE,
+    CalibrationEvent,
+    CalibrationEventType,
     EncoderData,
     FatigueCommandSource,
     IntentCommandSource,
@@ -39,6 +41,7 @@ from .utils.types import (
     PhaseEstimate,
     ServoMotorData,
     MotorId,
+    EncoderId,
 )
 from ..utils.types import (
     NiclaData,
@@ -110,8 +113,9 @@ class ProsthesisPipeline(Pipeline):
         self._phase_estimate_queue: Queue[PhaseEstimate] = Queue()
         self._motor_command_queue: Queue[MotorCommand] = Queue()
         self._nicla_data_queue: Queue[tuple[str, float, NiclaData]] = Queue()
-        self._encoder_data_queue: Queue[tuple[str, EncoderData]] = Queue()
-        self._motor_data_queue: Queue[tuple[str, ServoMotorData]] = Queue()
+        self._encoder_data_queue: Queue[tuple[EncoderId, EncoderData]] = Queue()
+        self._motor_data_queue: Queue[tuple[MotorId, ServoMotorData]] = Queue()
+        self._calibration_event_queue: Queue[CalibrationEvent] = Queue()
 
         # Shared controls for exo handler.
         self._next_mode = NextModeSynchronized()
@@ -134,6 +138,7 @@ class ProsthesisPipeline(Pipeline):
             "state_changed_queue": self._state_changed_queue,
             "phase_estimate_queue": self._phase_estimate_queue,
             "motor_command_queue": self._motor_command_queue,
+            "calibration_event_queue": self._calibration_event_queue,
         }
 
         # Incoming AI controls.
@@ -236,17 +241,15 @@ class ProsthesisPipeline(Pipeline):
                 self._next_fatigue.source.value = FatigueCommandSource.AI.value
 
     def _generate_data(self) -> None:
-        # TODO: pop data from IPC queues into HERMES.
-
         # Motor data.
-        motor_data: dict[str, tuple[str, list[ServoMotorData]]] = {
+        motor_data_dict: dict[MotorId, tuple[str, list[ServoMotorData]]] = {
             MotorId(motor_spec["can_id"]): (motor_name, [])
             for motor_name, motor_spec in self._motor_mapping.items()
         }
         while not self._motor_data_queue.empty():
             can_id, motor_sample = self._motor_data_queue.get_nowait()
-            motor_data[can_id][1].append(motor_sample)
-        for motor_name, motor_data in motor_data.values():
+            motor_data_dict[can_id][1].append(motor_sample)
+        for motor_name, motor_data in motor_data_dict.values():
             if motor_data:
                 output = {
                     f"motor_{motor_name}": {
@@ -262,9 +265,6 @@ class ProsthesisPipeline(Pipeline):
                         "current": np.array(
                             [list(map(lambda m: m.current, motor_data))], dtype=np.float32
                         ).transpose((1, 0)),
-                        "temperature": np.array(
-                            [list(map(lambda m: m.temperature, motor_data))], dtype=np.int8
-                        ).transpose((1, 0)),
                         "error": np.array(
                             [list(map(lambda m: m.error, motor_data))], dtype=np.uint8
                         ).transpose((1, 0)),
@@ -272,36 +272,33 @@ class ProsthesisPipeline(Pipeline):
                 }
                 self._publish(process_time_s=get_time(), new_data=output)
 
-        # Battery data.
-        encoder_data: list[EncoderData] = []
+        # Absolute encoder data.
+        encoder_data_dict: dict[EncoderId, tuple[str, list[EncoderData]]] = {
+            EncoderId[MotorId(motor_spec["can_id"]).name]: (motor_name, [])
+            for motor_name, motor_spec in self._motor_mapping.items()
+        }
         while not self._encoder_data_queue.empty():
-            encoder_data.append(self._encoder_data_queue.get_nowait())
-        if encoder_data:
-            output = {
-                "power_monitor": {
-                    "toa_s": np.array(
-                        [list(map(lambda m: m.timestamp, encoder_data))],
-                        dtype=np.float64,
-                    ).transpose((1, 0)),
-                    "temperature": np.array(
-                        [list(map(lambda m: m.temperature, encoder_data))],
-                        dtype=np.float32,
-                    ).transpose((1, 0)),
-                    "voltage": np.array(
-                        [list(map(lambda m: m.voltage, encoder_data))],
-                        dtype=np.float32,
-                    ).transpose((1, 0)),
-                    "current": np.array(
-                        [list(map(lambda m: m.current, encoder_data))],
-                        dtype=np.float32,
-                    ).transpose((1, 0)),
-                    "power": np.array(
-                        [list(map(lambda m: m.power, encoder_data))],
-                        dtype=np.float32,
-                    ).transpose((1, 0)),
+            encoder_id, encoder_sample = self._encoder_data_queue.get_nowait()
+            encoder_data_dict[encoder_id][1].append(encoder_sample)
+        for motor_name, encoder_data in encoder_data_dict.values():
+            if encoder_data:
+                output = {
+                    f"encoder_{motor_name}": {
+                        "toa_s": np.array(
+                            [list(map(lambda sample: sample.timestamp, encoder_data))],
+                            dtype=np.float64,
+                        ).transpose((1, 0)),
+                        "angle": np.array(
+                            [list(map(lambda sample: sample.angle, encoder_data))],
+                            dtype=np.float32,
+                        ).transpose((1, 0)),
+                        "is_error": np.array(
+                            [list(map(lambda sample: sample.is_error, encoder_data))],
+                            dtype=np.bool,
+                        ).transpose((1, 0)),
+                    }
                 }
-            }
-            self._publish(process_time_s=get_time(), new_data=output)
+                self._publish(process_time_s=get_time(), new_data=output)
 
         # Nicla data.
         nicla_data: dict[str, list[NiclaData]] = {
@@ -435,6 +432,41 @@ class ProsthesisPipeline(Pipeline):
             and self._state_changed_queue.empty()
             and self._phase_estimate_queue.empty()
         ):
+            # Calibration event data.
+            calibration_data: dict[CalibrationEventType, list[CalibrationEvent]] = {
+                CalibrationEventType.NICLA: [],
+                CalibrationEventType.ENCODER: [],
+            }
+            while not self._calibration_event_queue.empty():
+                calibration_event = self._calibration_event_queue.get_nowait()
+                calibration_data[calibration_event.sensor_type].append(calibration_event)
+            if calibration_data[CalibrationEventType.NICLA]:
+                output = {
+                    "nicla_calibration": {
+                        "toa_s": np.array(
+                            [list(map(lambda c: c.timestamp, calibration_data[CalibrationEventType.NICLA]))],
+                            dtype=np.float64,
+                        ).transpose((1, 0)),
+                        "offsets": np.array(
+                            list(map(lambda c: list(c.offsets.values()), calibration_data[CalibrationEventType.NICLA])), dtype=np.float32
+                        ).transpose((1, 0)),
+                    }
+                }
+                self._publish(process_time_s=get_time(), new_data=output)
+            if calibration_data[CalibrationEventType.ENCODER]:
+                output = {
+                    "encoder_calibration": {
+                        "toa_s": np.array(
+                            [list(map(lambda c: c.timestamp, calibration_data[CalibrationEventType.ENCODER]))],
+                            dtype=np.float64,
+                        ).transpose((1, 0)),
+                        "offsets": np.array(
+                            list(map(lambda c: list(c.offsets.values()), calibration_data[CalibrationEventType.ENCODER])), dtype=np.float32
+                        ).transpose((1, 0)),
+                    }
+                }
+                self._publish(process_time_s=get_time(), new_data=output)
+
             self._notify_no_more_data_out()
 
     def _stop_new_data(self):

@@ -23,7 +23,6 @@ class ProsthesisDataContainer(DataContainer):
         self,
         niclas: dict,
         motors: dict,
-        pmu: dict,
         telemetry: dict,
         **_,
     ) -> None:
@@ -31,7 +30,6 @@ class ProsthesisDataContainer(DataContainer):
 
         self._niclas = niclas
         self._motors = motors
-        self._pmu = pmu
         self._telemetry = telemetry
 
         self._define_data_notes()
@@ -190,21 +188,39 @@ class ProsthesisDataContainer(DataContainer):
             )
             self.add_channel(
                 bundle_name=f"motor_{motor_name}",
-                channel_name="temperature",
-                data_type="int8",
-                sample_size=[1],
-                buf_len=motors["buf_len"],
-                sampling_rate_hz=motors["sampling_rate_hz"],
-                data_notes=self._data_notes[f"motor_{motor_name}"]["temperature"],
-            )
-            self.add_channel(
-                bundle_name=f"motor_{motor_name}",
                 channel_name="error",
                 data_type="uint8",
                 sample_size=[1],
                 buf_len=motors["buf_len"],
                 sampling_rate_hz=motors["sampling_rate_hz"],
                 data_notes=self._data_notes[f"motor_{motor_name}"]["error"],
+            )
+
+        # Encoder data.
+        for motor_name in motor_specs.keys():
+            self.add_channel(
+                bundle_name=f"encoder_{motor_name}",
+                channel_name="toa_s",
+                data_type="float64",
+                sample_size=[1],
+                buf_len=telemetry["buf_len"],
+                data_notes=self._data_notes[f"encoder_{motor_name}"]["toa_s"],
+            )
+            self.add_channel(
+                bundle_name=f"encoder_{motor_name}",
+                channel_name="angle",
+                data_type="float32",
+                sample_size=[1],
+                buf_len=telemetry["buf_len"],
+                data_notes=self._data_notes[f"encoder_{motor_name}"]["angle"],
+            )
+            self.add_channel(
+                bundle_name=f"encoder_{motor_name}",
+                channel_name="is_error",
+                data_type="bool",
+                sample_size=[1],
+                buf_len=telemetry["buf_len"],
+                data_notes=self._data_notes[f"encoder_{motor_name}"]["is_error"],
             )
 
         # Motor commands.
@@ -276,53 +292,6 @@ class ProsthesisDataContainer(DataContainer):
             data_notes=self._data_notes["mode"]["source"],
         )
 
-        # Power monitor.
-        self.add_channel(
-            bundle_name="power_monitor",
-            channel_name="toa_s",
-            data_type="float64",
-            sample_size=[1],
-            buf_len=pmu["buf_len"],
-            sampling_rate_hz=pmu["sampling_rate_hz"],
-            data_notes=self._data_notes["power_monitor"]["toa_s"],
-        )
-        self.add_channel(
-            bundle_name="power_monitor",
-            channel_name="temperature",
-            data_type="float32",
-            sample_size=[1],
-            buf_len=pmu["buf_len"],
-            sampling_rate_hz=pmu["sampling_rate_hz"],
-            data_notes=self._data_notes["power_monitor"]["temperature"],
-        )
-        self.add_channel(
-            bundle_name="power_monitor",
-            channel_name="voltage",
-            data_type="float32",
-            sample_size=[1],
-            buf_len=pmu["buf_len"],
-            sampling_rate_hz=pmu["sampling_rate_hz"],
-            data_notes=self._data_notes["power_monitor"]["voltage"],
-        )
-        self.add_channel(
-            bundle_name="power_monitor",
-            channel_name="current",
-            data_type="float32",
-            sample_size=[1],
-            buf_len=pmu["buf_len"],
-            sampling_rate_hz=pmu["sampling_rate_hz"],
-            data_notes=self._data_notes["power_monitor"]["current"],
-        )
-        self.add_channel(
-            bundle_name="power_monitor",
-            channel_name="power",
-            data_type="float32",
-            sample_size=[1],
-            buf_len=pmu["buf_len"],
-            sampling_rate_hz=pmu["sampling_rate_hz"],
-            data_notes=self._data_notes["power_monitor"]["power"],
-        )
-
         # State machine transitions (intra-mode).
         self.add_channel(
             bundle_name="state",
@@ -359,35 +328,55 @@ class ProsthesisDataContainer(DataContainer):
             data_notes=self._data_notes["phase"]["phase"],
         )
 
-    def get_fps(self) -> dict[str, float | None]:
-        return {
-            **{
-                f"nicla_{nicla_name}": super()._get_fps(f"nicla_{nicla_name}", "toa_s")
-                for nicla_name in self._niclas.keys()
-            },
-            **{
-                f"motor_{motor_name}": super()._get_fps(f"motor_{motor_name}", "toa_s")
-                for motor_name in self._motors.keys()
-            },
-            **{
-                f"command_{motor_name}": super()._get_fps(
-                    f"command_{motor_name}", "toa_s"
-                )
-                for motor_name in self._motors.keys()
-            },
-            "power_monitor": super()._get_fps("power_monitor", "toa_s"),
-        }
+        # Calibration event data.
+        calibration_buf_len = 100
+        self.add_channel(
+            bundle_name="nicla_calibration",
+            channel_name="toa_s",
+            data_type="float64",
+            sample_size=[1],
+            buf_len=calibration_buf_len,
+            data_notes=self._data_notes["nicla_calibration"]["toa_s"],
+        )
+        self.add_channel(
+            bundle_name="nicla_calibration",
+            channel_name="offsets",
+            data_type="float32",
+            sample_size=[len(nicla_specs)],
+            buf_len=calibration_buf_len,
+            data_notes=self._data_notes["nicla_calibration"]["offsets"],
+        )
+
+        self.add_channel(
+            bundle_name="encoder_calibration",
+            channel_name="toa_s",
+            data_type="float64",
+            sample_size=[1],
+            buf_len=calibration_buf_len,
+            data_notes=self._data_notes["encoder_calibration"]["toa_s"],
+        )
+        self.add_channel(
+            bundle_name="encoder_calibration",
+            channel_name="offsets",
+            data_type="float32",
+            sample_size=[len(motor_specs)],
+            buf_len=calibration_buf_len,
+            data_notes=self._data_notes["encoder_calibration"]["offsets"],
+        )
 
     def _define_data_notes(self) -> None:
         self._data_notes = {}
         self._data_notes.setdefault("mode", {})
         self._data_notes.setdefault("state", {})
         self._data_notes.setdefault("phase", {})
-        self._data_notes.setdefault("power_monitor", {})
+        self._data_notes.setdefault("nicla_calibration", {})
+        self._data_notes.setdefault("encoder_calibration", {})
         for nicla_name in self._niclas["device_mapping"].keys():
             self._data_notes.setdefault(f"nicla_{nicla_name}", {})
         for motor_name in self._motors["device_mapping"].keys():
             self._data_notes.setdefault(f"motor_{motor_name}", {})
+        for motor_name in self._motors["device_mapping"].keys():
+            self._data_notes.setdefault(f"encoder_{motor_name}", {})
         for motor_name in self._motors["device_mapping"].keys():
             self._data_notes.setdefault(f"command_{motor_name}", {})
 
@@ -554,22 +543,44 @@ class ProsthesisDataContainer(DataContainer):
                     ("Units", "Ampere"),
                 ]
             )
-            self._data_notes[dev]["temperature"] = OrderedDict(
-                [
-                    (
-                        "Description",
-                        "Encoder absolute position w.r.t. user-calibrated motor origin position [-20, 127]",
-                    ),
-                    ("Units", "Celsius"),
-                ]
-            )
             self._data_notes[dev]["error"] = OrderedDict(
                 [
                     (
                         "Description",
                         "Error codes identifying internal state of the motor",
                     ),
-                    ("Error codes", [f"{e.name}: {e.value}" for e in ServoErrorCode]),
+                    # ("Error codes", [f"{e.name}: {e.value}" for e in ServoErrorCode]),
+                ]
+            )
+
+        # Absolute joint encoder data. 
+        for motor_name in motors.keys():
+            dev = f"encoder_{motor_name}"
+            self._data_notes[dev]["toa_s"] = OrderedDict(
+                [
+                    (
+                        "Description",
+                        "Time of arrival of the samples since Epoch w.r.t. system clock",
+                    ),
+                    ("Units", "seconds since Epoch"),
+                ]
+            )
+            self._data_notes[dev]["angle"] = OrderedDict(
+                [
+                    (
+                        "Description",
+                        "Joint's absolute encoder position (angle) w.r.t. user-calibrated motor origin position.",
+                    ),
+                    ("Units", "degrees"),
+                ]
+            )
+            self._data_notes[dev]["is_error"] = OrderedDict(
+                [
+                    (
+                        "Description",
+                        "Error codes identifying internal state of the motor",
+                    ),
+                    # ("Error codes", [f"{e.name}: {e.value}" for e in ServoErrorCode]),
                 ]
             )
 
@@ -618,49 +629,6 @@ class ProsthesisDataContainer(DataContainer):
                     ),
                 ]
             )
-
-        # MatekSys DroneCAN power monitor.
-        self._data_notes["power_monitor"]["toa_s"] = OrderedDict(
-            [
-                (
-                    "Description",
-                    "Time of arrival of the samples since Epoch w.r.t. system clock at the CAN interface",
-                ),
-                ("Units", "seconds since Epoch"),
-            ]
-        )
-        self._data_notes["power_monitor"]["temperature"] = OrderedDict(
-            [
-                (
-                    "Description",
-                    "Onboard temperature of the MatekSys DroneCAN PMU",
-                ),
-            ]
-        )
-        self._data_notes["power_monitor"]["voltage"] = OrderedDict(
-            [
-                (
-                    "Description",
-                    "Voltage sensed on the power rail by the MatekSys DroneCAN PMU",
-                ),
-            ]
-        )
-        self._data_notes["power_monitor"]["current"] = OrderedDict(
-            [
-                (
-                    "Description",
-                    "Current pulled from the power supply by the system through the MatekSys DroneCAN PMU",
-                ),
-            ]
-        )
-        self._data_notes["power_monitor"]["power"] = OrderedDict(
-            [
-                (
-                    "Description",
-                    "Instanteneous power by the system on the power supply, sensed by the MatekSys DroneCAN PMU",
-                ),
-            ]
-        )
 
         # Locomotion mode.
         self._data_notes["mode"]["toa_s"] = OrderedDict(
@@ -746,5 +714,45 @@ class ProsthesisDataContainer(DataContainer):
                     "Description",
                     "State machine gait phase estimator. Used mostly in Walking",
                 ),
+            ]
+        )
+
+        # Nicla calibration.
+        self._data_notes["nicla_calibration"]["toa_s"] = OrderedDict(
+            [
+                (
+                    "Description",
+                    "Time of arrival of the Nicla calibration event since Epoch w.r.t. system clock",
+                ),
+                ("Units", "seconds since Epoch"),
+            ]
+        )
+        self._data_notes["nicla_calibration"]["offsets"] = OrderedDict(
+            [
+                (
+                    "Description",
+                    "Measured Euler angle calibration offsets for each Nicla sensor in degrees",
+                ),
+                ("Units", "degrees"),
+            ]
+        )
+
+        # Encoder calibration.
+        self._data_notes["encoder_calibration"]["toa_s"] = OrderedDict(
+            [
+                (
+                    "Description",
+                    "Time of arrival of the motor homing calibration completion event since Epoch w.r.t. system clock",
+                ),
+                ("Units", "seconds since Epoch"),
+            ]
+        )
+        self._data_notes["encoder_calibration"]["offsets"] = OrderedDict(
+            [
+                (
+                    "Description",
+                    "Recorded absolute joint encoder angles at the home position in degrees",
+                ),
+                ("Units", "degrees"),
             ]
         )
