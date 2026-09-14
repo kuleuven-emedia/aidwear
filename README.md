@@ -91,7 +91,28 @@ This will automatically wrap the corresponding YAML configurations into the rest
 > (Discouraged) You can also generically run the HERMES CLI to manually configure in-line any desired arguments `hermes-cli -o ./data -f run/prosthesis_standalone_cli/prosthesis.yml -e project=<PROJECT> trial=<X>`
 > Make sure to update the `trial` number on every launch of the script. It's used to create unique folders for data collection that avoid overwriting previously collected data. HERMES system will not allow you to run the same experiment name twice, to protect the previously collected data.
 
-## IMU sensor placement
+### Manual standalone operation
+When running in [standalone CLI mode](#option-1-local-shell-terminal), press the activity id on the keyboard, followed by 'Enter' to manually switch the prosthesis controller to it:
+| Activity | ID |
+| - | - |
+| Idle | 0 |
+| Walking | 1 |
+| Sit-To-Stand | 2 |
+| Stair Ascent | 3 |
+| Stair Descent | 4 |
+
+And enter a percentage of fatigue to manually update the level of assistance of the prosthesis controller by '%', followed by number 0-100, followed by 'Enter' (e.g. `$> %70`).
+
+### Motor control
+
+Ankle plantar flexion decrements EPOS drive incremental encoder. Knee extension ... the encoder. The home offset of each motor is taken w.r.t. the corresponding endstop (i.e. plantar flexion for ankle, extension for knee).
+
+| Joint | Absolute encoder (°) | Motor offset (a.u.) |
+| - | - | - |
+| Knee | ... | ... |
+| Ankle | 38 | -128_000 |
+
+### IMU sensor placement
 <p align="center">
   <img src="images/xsens_axes.jpg" alt="Axes orientation overview on Xsens IMUs" width="45%" />
   <img src="images/nicla_axes.png" alt="Axes orientaiton overview on Nicla Sense ME IMUs" width="45%" />
@@ -110,18 +131,6 @@ AidWear axes matching:
 | Shank left | [x,y,z] | [-y,-z,x] |
 | Foot right | [x,y,z] | [-y,x,z] |
 | Foot left | [x,y,z] | [-y,x,z] |
-
-### Manual standalone operation
-When running in [standalone CLI mode](#option-1-local-shell-terminal), press the activity id on the keyboard, followed by 'Enter' to manually switch the prosthesis controller to it:
-| Activity | ID |
-| - | - |
-| Idle | 0 |
-| Walking | 1 |
-| Sit-To-Stand | 2 |
-| Stair Ascent | 3 |
-| Stair Descent | 4 |
-
-And enter a percentage of fatigue to manually update the level of assistance of the prosthesis controller by '%', followed by number 0-100, followed by 'Enter' (e.g. `$> %70`).
 
 ## Structure
 The prosthesis-specific files:

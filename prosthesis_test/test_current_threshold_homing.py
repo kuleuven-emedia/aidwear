@@ -34,6 +34,8 @@ import os
 import sys
 import time
 from typing import Optional, Dict, Any, Tuple
+from collections import deque
+import can
 
 # Ensure repository root and src directory are on sys.path
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -71,64 +73,32 @@ from hermes.aidwear.prosthesis.utils.types import (
     EposProtocolStack,
     HomingMethod,
     MotorId,
+    EncoderId,
 )
 from hermes.aidwear.prosthesis.motor_control.types import HomingConfig, EposDeviceConfig
 
 
-class MockHomingExecutor:
-    """Simulates EPOS4 current threshold homing when running in mock mode."""
+class CanBackend(can.Listener):
+    def __init__(
+        self,
+        encoder_latest_data: dict[EncoderId, deque[float]],
+    ):
+        super().__init__()
+        self._encoder_latest_data = encoder_latest_data
 
-    def __init__(self, config: HomingConfig):
-        self.config = config
-        self.pos = 0
-        self.vel = 0
-        self.curr = 50
-        self.attained = False
-        self.error = False
-        self._start_time = 0.0
-        self._hardstop_hit = False
+    def on_message_received(self, msg: can.Message) -> None:
+        # Add support for other CAN devices (e.g. PMU, etc.), accounting for Arbitration IDs.
+        if msg.arbitration_id in [EncoderId.KNEE.value, EncoderId.ANKLE.value] and len(msg.data) >= 2:
+            src_id = EncoderId(msg.arbitration_id)
 
-    def start(self):
-        self._start_time = time.time()
-        self._hardstop_hit = False
-        self.attained = False
-        self.error = False
-        self.pos = 10000
+            angle_raw = (msg.data[0] << 8) | msg.data[1]
 
-    def step(self) -> Tuple[int, int, int, bool, bool]:
-        elapsed = time.time() - self._start_time
-        direction = (
-            1
-            if self.config.homing_method
-            == HomingMethod.CURRENT_THRESHOLD_POSITIVE_SPEED
-            else -1
-        )
+            error = (angle_raw >> 14) & 0x01 # verification error flag (bit 14)
 
-        if elapsed < 2.0:
-            # Crawling toward hardstop
-            self.vel = direction * self.config.speed_switch
-            self.pos += int(direction * 1500 * self.config.poll_interval_s)
-            self.curr = 80 + int(elapsed * 40)
-        elif elapsed < 2.5:
-            # Hitting hardstop: velocity stops, current rises above threshold
-            self._hardstop_hit = True
-            self.vel = 0
-            self.curr = self.config.current_threshold_ma + 120
-        elif elapsed < 4.0:
-            # Drive detected hardstop and moves to home_position via home_offset
-            # Moving in opposite direction to relieve load
-            retreat_dir = -direction
-            self.vel = retreat_dir * self.config.speed_index
-            self.pos += int(retreat_dir * 1200 * self.config.poll_interval_s)
-            self.curr = 120
-        else:
-            # Homing attained at home_position
-            self.vel = 0
-            self.curr = 45
-            self.pos = self.config.home_position_coordinate
-            self.attained = True
+            angle_data = angle_raw & 0x3FFF  # 14 data bits
+            angle_deg = angle_data * (360.0 / 16384.0) # Resolution of the 14 bit => 2^14 = 16384
 
-        return self.pos, self.vel, self.curr, self.attained, self.error
+            self._encoder_latest_data[src_id].append(angle_deg)
 
 
 def run_current_threshold_homing(
@@ -172,6 +142,19 @@ def run_current_threshold_homing(
     print(f" Execution Mode    : {'MOCK SIMULATION' if is_mock else 'PHYSICAL HARDWARE'}")
     print("=" * 72)
 
+    encoder_latest_data: dict[EncoderId, deque[float]] = {
+        encoder_id: deque([0.0], maxlen=1)
+        for encoder_id in EncoderId
+    }
+
+    can_bus = can.interface.Bus(channel="can0", interface="socketcan", fd=True)
+    can_listener = CanBackend(
+        encoder_latest_data=encoder_latest_data,
+    )
+    can_notifier = can.Notifier(
+        bus=can_bus, listeners=[can_listener]
+    )
+
     handle = None
     owns_handle = handle is None
     peak_current = 0
@@ -179,60 +162,6 @@ def run_current_threshold_homing(
     start_pos = 0
     t0 = time.time()
     telemetry_samples = []
-
-    if is_mock:
-        mock = MockHomingExecutor(config)
-        mock.start()
-        print("\n[MOCK] Initialized mock simulation executor.")
-        print(
-            "[MOCK] Simulating drive initialization, fault clearing, and homing search..."
-        )
-        time.sleep(0.2)
-        print(
-            f"[MOCK] Active Homing Mode: Method {homing_config.homing_method.value} started.\n"
-        )
-
-        print(
-            f"{'Time [s]':>8} | {'Position [QC]':>14} | {'Velocity [RPM]':>14} | {'Current [mA]':>12} | Status"
-        )
-        print("-" * 72)
-
-        while True:
-            elapsed = time.time() - t0
-            pos, vel, curr, attained, error = mock.step()
-            peak_current = max(peak_current, abs(curr))
-
-            if is_log_telemetry:
-                status_str = "Homing Search (Crawl)"
-                if mock._hardstop_hit and not attained:
-                    status_str = f"Threshold Hit! Retreating ({homing_config.speed_index} RPM)"
-                elif attained:
-                    status_str = "HOMING ATTAINED"
-                print(
-                    f"{elapsed:8.2f} | {pos:14d} | {vel:14d} | {curr:12d} | {status_str}"
-                )
-
-            telemetry_samples.append(
-                {"time": elapsed, "pos": pos, "vel": vel, "curr": curr}
-            )
-
-            if attained:
-                print("-" * 72)
-                print("[MOCK] Homing attained successfully!")
-                return {
-                    "success": True,
-                    "final_position": pos,
-                    "peak_current_ma": peak_current,
-                    "elapsed_time_s": elapsed,
-                    "samples_count": len(telemetry_samples),
-                }
-
-            if elapsed > timeout_s:
-                raise TimeoutError(
-                    f"[MOCK] Homing timed out after {elapsed:.1f} s without attaining home."
-                )
-
-            time.sleep(poll_interval_s)
 
     # -------------------------------------------------------------------------
     # Physical Hardware Execution
@@ -310,7 +239,7 @@ def run_current_threshold_homing(
             "\n[6/6] Monitoring homing progress (waiting for current threshold & homing attained)..."
         )
         print(
-            f"{'Time [s]':>8} | {'Position [QC]':>14} | {'Velocity [RPM]':>14} | {'Current [mA]':>12} | Status"
+            f"{'Time [s]':>8} | {'Abs. Position [QC]':>14} | {'Inc. Position [QC]':>14} | {'Velocity [RPM]':>14} | {'Current [mA]':>12} | Status"
         )
         print("-" * 72)
 
@@ -323,6 +252,7 @@ def run_current_threshold_homing(
             cur_vel = get_velocity(handle, node_id)
             cur_curr = get_current(handle, node_id)
             peak_current = max(peak_current, abs(cur_curr))
+            cur_enc = encoder_latest_data[EncoderId[node_id.name]][-1]
 
             attained, homing_err = hm_get_state(handle, node_id)
 
@@ -337,6 +267,7 @@ def run_current_threshold_homing(
                 hardstop_pos = cur_pos
 
             status_msg = "Searching (Crawl)"
+
             if threshold_detected and not attained:
                 status_msg = f"Threshold Hit ({cur_curr} mA) -> Moving to Home Pos"
             elif attained:
@@ -344,13 +275,14 @@ def run_current_threshold_homing(
 
             if is_log_telemetry:
                 print(
-                    f"{elapsed:8.2f} | {cur_pos:14d} | {cur_vel:14d} | {cur_curr:12d} | {status_msg}"
+                    f"{elapsed:8.2f} | {cur_enc:.4f} | {cur_pos:14d} | {cur_vel:14d} | {cur_curr:12d} | {status_msg}"
                 )
 
             telemetry_samples.append(
                 {
                     "time": elapsed,
-                    "pos": cur_pos,
+                    "abs_pos": cur_pos,
+                    "inc_pos": cur_pos,
                     "vel": cur_vel,
                     "curr": cur_curr,
                 }
@@ -360,10 +292,14 @@ def run_current_threshold_homing(
                 print("-" * 72)
                 final_pos = get_position(handle, node_id)
                 final_curr = get_current(handle, node_id)
+                final_enc = encoder_latest_data[EncoderId[node_id.name]][-1]
                 print(f"[SUCCESS] Homing procedure completed in {elapsed:.2f} s.")
                 print(f"          Starting Position : {start_pos} QC")
                 if hardstop_pos is not None:
                     print(f"          Hardstop Contact  : {hardstop_pos} QC")
+                print(
+                    f"          Final Encoder    : {final_enc:.3f} QC (Target: reference)"
+                )
                 print(
                     f"          Final Position    : {final_pos} QC (Target: {homing_config.home_position_coordinate})"
                 )
@@ -425,6 +361,7 @@ def run_current_threshold_homing(
                 print("          Device closed safely.")
             except Exception as e:
                 print(f"Warning: Failed to close device: {e}")
+        can_notifier.stop()
 
 
 def main():
