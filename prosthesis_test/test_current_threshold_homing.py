@@ -75,6 +75,7 @@ from hermes.aidwear.prosthesis.utils.types import (
     MotorId,
     EncoderId,
 )
+from hermes.aidwear.prosthesis.utils.utils import config_can_linux
 from hermes.aidwear.prosthesis.motor_control.types import HomingConfig, EposDeviceConfig
 
 
@@ -281,7 +282,7 @@ def run_current_threshold_homing(
             telemetry_samples.append(
                 {
                     "time": elapsed,
-                    "abs_pos": cur_pos,
+                    "abs_pos": cur_enc,
                     "inc_pos": cur_pos,
                     "vel": cur_vel,
                     "curr": cur_curr,
@@ -298,7 +299,7 @@ def run_current_threshold_homing(
                 if hardstop_pos is not None:
                     print(f"          Hardstop Contact  : {hardstop_pos} QC")
                 print(
-                    f"          Final Encoder    : {final_enc:.3f} QC (Target: reference)"
+                    f"          Final Angle    : {final_enc:.3f} ° (Target: reference)"
                 )
                 print(
                     f"          Final Position    : {final_pos} QC (Target: {homing_config.home_position_coordinate})"
@@ -362,6 +363,13 @@ def run_current_threshold_homing(
             except Exception as e:
                 print(f"Warning: Failed to close device: {e}")
         can_notifier.stop()
+        can_bus.shutdown()
+
+        with open(f"prosthesis_test/{node_id.name.lower()}_calibration.csv", "w") as f:
+            f.write("time,abs_pos,inc_pos,vel,curr\n")
+            f.writelines(
+                map(lambda s: f"{",".join(map(lambda e: str(e), s.values()))}\n", telemetry_samples)
+            )
 
 
 def main():
@@ -512,4 +520,5 @@ def main():
 
 
 if __name__ == "__main__":
+    config_can_linux("can0")
     main()
