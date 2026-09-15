@@ -77,7 +77,7 @@ pipeline_specs:
                 speed_switch: 100
                 speed_index: 100
                 current_threshold_ma: 1_000
-                home_offset_enc_ticks: -10_000
+                home_offset_enc_ticks: 0
                 home_position_coordinate: 0
               absolute_encoder_reference: 180.0
             ankle:

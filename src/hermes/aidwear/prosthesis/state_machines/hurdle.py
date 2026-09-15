@@ -18,541 +18,170 @@ from ..utils.types import (
     ServoImpedanceGains,
     ServoMotorEnum,
     ServoReference,
-    SitToStandParameters,
+    HurdlesParameters,
     StateEnum,
     StateTransition,
     MotorId,
 )
 
 
+
 class Hurdle(StateMachine, ProsthesisStateMachine):
     # States.
-    stance = State(value=StateEnum.SitToStand.STANCE.value, initial=True)
-    lowering = State(
-        value=StateEnum.SitToStand.LOWERING.value,
+    stance = State(
+        value=StateEnum.Hurdle.STANCE.value,
+        initial=True,
     )
-    sitting = State(
-        value=StateEnum.SitToStand.SITTING.value,
-    )
-    rising = State(
-        value=StateEnum.SitToStand.RISING.value,
+    swing = State(
+        value=StateEnum.Hurdle.SWING.value,
     )
 
     # Transitions.
     cycle = (
-        stance.to(stance, unless="stance_to_lowering")
-        | stance.to(lowering, cond="stance_to_lowering")
-        | lowering.to(lowering, unless="lowering_to_sitting")
-        | lowering.to(sitting, cond="lowering_to_sitting")
-        | sitting.to(sitting, unless="sitting_to_rising")
-        | sitting.to(rising, cond="sitting_to_rising")
-        | rising.to(rising, unless="rising_to_stance")
-        | rising.to(stance, cond="rising_to_stance")
+        stance.to(stance, unless="stance_to_swing")
+        | stance.to(swing, cond="stance_to_swing")    # T1
+        | swing.to(swing, unless="swing_to_stance")
+        | swing.to(stance, cond="swing_to_stance")    # T2
     )
 
     def __init__(self, ctx: ModeContext):
-        self._thigh_left_gyr = 0
-        self._thigh_left_roll = 0
-        self._knee_left_roll = 0
-        self._thigh_right_gyr = 0
-        self._thigh_right_roll = 0
-        self._knee_right_roll = 0
-        self._torso_roll = 0
-        self._phase = 0
-        self._idle_dur = 0.00000001
-        self._active_dur = 0
-        self._is_safe = False
+        self._thigh_pr_gyr = 0          # θ̇_thigh,pr
+        self._thigh_pr_roll = 0         # θ_thigh,pr
+        self._knee_pr_roll = 0          # θ_knee,pr
+        self._knee_reference = 0        # θ_knee,pr reference
+        self._ankle_reference = 0       # θ_ankle,pr reference
+        self._thigh_swing_start = 20
+        
+        self._knee_swing_start = 0
 
-        self._ctx = ctx
+        # Positive gain means that the knee follows the thigh in the same
+        # direction. Tune this from recorded thigh/knee data.
+        self._knee_thigh_gain = 1.3
+
+        self._K = ctx.K
+        self._bus = ctx.bus
+        self._motor_latest_data = ctx.motor_latest_data
+        self._fatigue = ctx.fatigue
+        self._state_changed_queue = ctx.state_changed_queue
+        self._phase_estimate_queue = ctx.phase_estimate_queue
+        self._motor_command_queue = ctx.motor_command_queue
+
+# In a real scenario, we would load personalized parameters from the configuration file.
+# Personalized parameters.
+#        thresholds = ctx.config_manager.get_section("hurdles")["thresholds"]
+#        timings = ctx.config_manager.get_section("hurdles")["timings"]
+
+         # Personalized parameters.
+#        self._param = HurdlesParameters(
+#            stance_to_swing_th_roll_pr = thresholds["stance_to_swing_th_roll_pr"],
+#            stance_to_swing_th_gyr_pr = thresholds[
+#                "stance_to_swing_th_gyr_pr"
+#            ],
+#            swing_to_stance_th_roll_pr = thresholds[
+#                "swing_to_stance_th_roll_pr"
+#            ],  
+#        )
 
         # Personalized parameters.
-        thresholds = ctx.config_manager.get_section("sit_to_stand")["thresholds"]
-        timings = ctx.config_manager.get_section("sit_to_stand")["timings"]
-        phase = ctx.config_manager.get_section("sit_to_stand")["phase"]
-        self._is_biodex = ctx.config_manager.get_section("biodex")["enabled"]
-
-        self._param = SitToStandParameters(
-            # Transition thresholds.
-            stance_to_lowering_th_gyr=thresholds["stance_to_lowering_th_gyr"],
-            stance_to_lowering_th_roll=thresholds["stance_to_lowering_th_roll"],
-            stance_to_lowering_torso_roll=thresholds["stance_to_lowering_torso_roll"],
-            stance_to_lowering_kn_roll=thresholds["stance_to_lowering_kn_roll"],
-            lowering_to_sitting_th_gyr_min=thresholds["lowering_to_sitting_th_gyr_min"],
-            lowering_to_sitting_th_gyr_max=thresholds["lowering_to_sitting_th_gyr_max"],
-            lowering_to_sitting_phase_threshold=thresholds[
-                "lowering_to_sitting_phase_threshold"
-            ],
-            sitting_to_rising_th_gyr=thresholds["sitting_to_rising_th_gyr"],
-            sitting_to_rising_phase_threshold=thresholds[
-                "sitting_to_rising_phase_threshold"
-            ],
-            sitting_to_rising_idle_dur_min=thresholds["sitting_to_rising_idle_dur_min"],
-            rising_to_stance_th_gyr_min=thresholds["rising_to_stance_th_gyr_min"],
-            rising_to_stance_th_gyr_max=thresholds["rising_to_stance_th_gyr_max"],
-            rising_to_stance_kn_roll=thresholds["rising_to_stance_kn_roll"],
-            rising_to_stance_phase_threshold=thresholds[
-                "rising_to_stance_phase_threshold"
-            ],
-            reset_phase_threshold=thresholds["reset_phase_threshold"],
-            inactivity_angle_threshold=thresholds["inactivity_angle_threshold"],
-            # Impedance gains and timing.
-            imp_gain_rise_time=timings["imp_gain_rise_time"],
-            gain_step=timings["gain_step"],
-            active_ramp_time=timings["active_ramp_time"],
-            # Phase calculation parameters.
-            phase_start_angle=phase["phase_start_angle"],
-            phase_end_angle=phase["phase_end_angle"],
+        self._param = HurdlesParameters(
+            # --------------------------- Stance -> Swing (T1) ---------------------------
+            stance_to_swing_th_roll_pr=20,           # θ_thigh,pr > 20 deg
+            stance_to_swing_th_gyr_pr=500,           # θ̇_thigh,pr > 30 deg/s
+            # --------------------------- Swing -> Stance (T2) ---------------------------
+            swing_to_stance_th_roll_pr=20,           # θ_thigh,pr < 20 deg
         )
 
         super(Hurdle, self).__init__()
 
     # Post-transition synchronous callback.
     def after_transition(self, event: Event, state: State):
-        # Stores when the state machine transitioned to a new gait phase.
-        if not self._is_stop_new_data_event.is_set():
-            self._state_changed_queue.put(
-                StateTransition(timestamp=get_time(), state=state.value)
-            )
-
-    def stance_to_lowering(self):
-        return (
-            self._thigh_right_gyr > self._param.stance_to_lowering_th_gyr
-            and self._thigh_left_gyr > self._param.stance_to_lowering_th_gyr
-            and self._thigh_right_roll > self._param.stance_to_lowering_th_roll
-            and self._thigh_left_roll > self._param.stance_to_lowering_th_roll
-            and self._torso_roll > self._param.stance_to_lowering_torso_roll
-            and self._knee_left_roll > self._param.stance_to_lowering_kn_roll
-            and self._knee_right_roll > self._param.stance_to_lowering_kn_roll
+        self._state_changed_queue.put(
+            StateTransition(timestamp=get_time(), state=state.value)
         )
 
-    def lowering_to_sitting(self):
+    # T1: Stance -> Swing
+    def stance_to_swing(self):
         return (
-            self._param.lowering_to_sitting_th_gyr_min
-            < self._thigh_right_gyr
-            < self._param.lowering_to_sitting_th_gyr_max
-            and self._param.lowering_to_sitting_th_gyr_min
-            < self._thigh_left_gyr
-            < self._param.lowering_to_sitting_th_gyr_max
-            and self._phase > self._param.lowering_to_sitting_phase_threshold
+            self._thigh_pr_roll > self._param.stance_to_swing_th_roll_pr
+            and self._thigh_pr_gyr > self._param.stance_to_swing_th_gyr_pr
         )
 
-    def sitting_to_rising(self):
-        return (
-            self._thigh_right_gyr > self._param.sitting_to_rising_th_gyr
-            and self._thigh_left_gyr > self._param.sitting_to_rising_th_gyr
-            and self._phase > self._param.sitting_to_rising_phase_threshold
-            and self._idle_dur >= self._param.sitting_to_rising_idle_dur_min
-        )
-
-    def rising_to_stance(self):
-        return (
-            #self._param.rising_to_stance_th_gyr_min
-            #< self._thigh_right_gyr
-            #< self._param.rising_to_stance_th_gyr_max
-            #and self._param.rising_to_stance_th_gyr_min
-            #< self._thigh_left_gyr
-            #< self._param.rising_to_stance_th_gyr_max and 
-            self._knee_left_roll < self._param.rising_to_stance_kn_roll
-            and self._knee_right_roll < self._param.rising_to_stance_kn_roll
-            and self._phase < self._param.rising_to_stance_phase_threshold
-        )
-
-    # Actions.
+    # T2: Swing -> Stance
+    def swing_to_stance(self):
+        return self._thigh_pr_roll < self._param.swing_to_stance_th_roll_pr
+    
+    # Actions.                                                 
     def on_enter_stance(self):
-        with self._ctx.next_fatigue.lock():
-            next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
-            next_mode = self._ctx.next_mode.next_value.value
+        self._knee_reference = self._knee_swing_start
+        print("hurdle: stance", flush=True)
         
-        if self._token.value == 0:
-            imp_rise_time = 0.000000001
-        else:
-            imp_rise_time = self._param.imp_gain_rise_time
+    def on_enter_swing(self):
+        # Start the reference from the measured knee angle at swing onset.
+        print("hurdle: swing", flush=True)
+    
 
-        if next_mode in [
-            ModeEnum.STAIR_ASCENT.value.id,
-            ModeEnum.STAIR_DESCENT.value.id,
-        ]:
-            self._token.value = 0
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
+    def _update_motors_reference(self):
+        """Make the knee reference follow changes in the thigh angle."""
+        thigh_change = self._thigh_pr_roll - self._thigh_swing_start
+        self._knee_reference = (
+            self._knee_swing_start + self._knee_thigh_gain * thigh_change
         )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(int(next_fatigue)) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._idle_dur += self._param.gain_step
-        self._active_dur = 0
-
-    def on_enter_lowering(self):
-        with self._ctx.next_fatigue.lock():
-            next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
-            next_mode = self._ctx.next_mode.next_value.value
-
-        self._token.value = 0
-        ramp_time = self._param.active_ramp_time
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._active_dur += self._param.gain_step
-        self._idle_dur = 0
-
-    def on_enter_sitting(self):
-        with self._ctx.next_fatigue.lock():
-            next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
-            next_mode = self._ctx.next_mode.next_value.value
-
-        imp_rise_time = self._param.imp_gain_rise_time
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._idle_dur += self._param.gain_step
-        self._active_dur = 0
-
-    def on_enter_rising(self):
-        with self._ctx.next_fatigue.lock():
-            next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
-            next_mode = self._ctx.next_mode.next_value.value
-
-        ramp_time = self._param.active_ramp_time
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._active_dur += self._param.gain_step
-        self._idle_dur = 0
+        self._ankle_reference = 0
 
     def update_sensor_values(
+        self,
+        torso_angle: float = np.nan,
+        thigh_left_angle: float = np.nan,
+        thigh_right_angle: float = np.nan,
+        thigh_left_roll: float = np.nan,
+        thigh_right_roll: float = np.nan,
+        knee_left_roll: float = np.nan,
+        knee_right_roll: float = np.nan,
+        thigh_left_gyr: int = 0,
+        thigh_right_gyr: int = 0,
+        dt: float = 0.01,
+    ):
+        self._thigh_left_gyr = thigh_left_gyr
+        self._thigh_left_roll = thigh_left_roll
+        self._knee_left_roll = knee_left_roll
+        self._thigh_right_gyr = thigh_right_gyr
+        self._thigh_right_roll = thigh_right_roll
+        self._knee_right_roll = knee_right_roll
+        self._torso_roll = torso_angle
+
+        # The right leg is currently treated as the prosthetic leg.
+        self._thigh_pr_gyr = thigh_right_gyr
+        self._thigh_pr_roll = thigh_right_roll
+        self._knee_pr_roll = knee_right_roll  #! This should be the encoder measurement of the prosthetic knee or the IMU measurement of the thigh.
+
+        if self.current_state == self.swing:
+            self._update_motors_reference()
+
+    def step(self) -> None:
+        self.send("cycle")
+
+    def is_safe_to_switch(self) -> bool:
+        return self._is_safe
+
+    def send_data(self) -> dict:
+        data = {
+            "Lth_gyr": self._thigh_left_gyr,
+            "Lth_roll": self._thigh_left_roll,
+            "torso_roll": self._torso_roll,
+            "phase": self._phase,
+            "state": str(self.current_state),
+
+            "knee_reference": self._knee_reference,
+            "P_kn_traj": float(
+                self._trajectory[MotorId.KNEE][self._knee_reference]
+            ),
+            "P_an_traj": float(
+                self._trajectory[MotorId.ANKLE][self._ankle_reference]
+                ),
+        }
+        return data
+    
+#    def update_sensor_values(
         self,
         torso_angle: float = np.nan,
         thigh_left_angle: float = np.nan,
@@ -566,7 +195,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         knee_left_gyr: int = 0,
         knee_right_gyr: int = 0,
         dt: float = 0.01,
-    ):
+#    ):
         self._thigh_left_gyr = thigh_left_gyr
         self._thigh_left_roll = thigh_left_roll
         self._knee_left_roll = knee_left_roll
@@ -587,13 +216,13 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
                 PhaseEstimate(timestamp=get_time(), phase=self._phase)
             )
 
-    def step(self) -> None:
+#    def step(self) -> None:
         self.send("cycle")
 
-    def is_safe_to_switch(self) -> bool:
+#    def is_safe_to_switch(self) -> bool:
         return self.current_state.value == StateEnum.SitToStand.STANCE.value
 
-    def send_data(self) -> dict:
+#    def send_data(self) -> dict:
         data = {
             "Lth_gyr": self._thigh_left_gyr,
             "Lth_roll": self._thigh_left_roll,

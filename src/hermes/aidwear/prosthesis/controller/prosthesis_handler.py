@@ -226,7 +226,7 @@ class ProsthesisHandler:
         self._epos_handle = epos_facade.init(epos_handle_config)
 
         # for motor_id in MotorId:
-        self._active_motors: list[MotorId] = [MotorId.ANKLE]
+        self._active_motors: list[MotorId] = [MotorId.ANKLE, MotorId.KNEE]
         for motor_id in self._active_motors:
             epos_facade.connect(self._epos_handle, motor_id)
             epos_facade.enable(self._epos_handle, motor_id)
@@ -557,7 +557,7 @@ class ProsthesisHandler:
                 dt=self._dt,
             )
 
-            # self._mode_fsm.step()
+            #self._mode_fsm.step()       ###################################################################
 
             end_time_s = get_time()
             if (sleep_s := next_period_s - end_time_s) > 0:
@@ -662,7 +662,7 @@ class ProsthesisHandler:
         # NOTE: Loops until upstream HERMES node triggers closure via `_is_cleanup_event` event.
         # TODO: Add a coroutine with `watchdog` of the motors gains file.
         await asyncio.gather(
-            # self._run_state_machine(),
+            #self._run_state_machine(), ###################################################################
             self._poll_motor_data(),
             self._watch_for_offset_recalibration(),
             self._nicla_backend.run(),

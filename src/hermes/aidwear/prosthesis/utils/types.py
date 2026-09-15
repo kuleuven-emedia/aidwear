@@ -207,7 +207,9 @@ class StateEnum:
 
     class Walking(Enum):
         IDLE = 1
-        WALKING = 2
+        ONE_STEP = 2
+        STANCE = 3
+        SWING = 4
 
     class SitToStand(Enum):
         STANCE = 3
@@ -217,17 +219,16 @@ class StateEnum:
 
     class StairAscent(Enum):
         STANCE = 7
-        SWING = 8
-        PUSH_OFF = 9
+        PUSH_OFF = 8
+        SWING = 9
+        STEP_UP = 10
 
     class StairDescent(Enum):
-        DOUBLE_SUPPORT = 10
-        SWING = 11
-        STANCE = 12
+        IDLE = 11
 
     class Hurdle(Enum):
-        IDLE = 13
-        WALKING = 14
+        STANCE = 12
+        SWING = 13
 
 
 class IntentCommandSource(Enum):
@@ -393,7 +394,7 @@ class WalkingFirstStrideEnum(Enum):
 
 
 @dataclass
-class StairAscentParameters:
+class StairAscentParameters2:
     # Transition thresholds
     stance_to_swing_th_gyr: float
     stance_to_swing_th_roll: float
@@ -425,6 +426,22 @@ class StairAscentParameters:
     movement_angle_threshold: float
     movement_gyr_threshold: float
     movement_sum_threshold: float
+
+@dataclass
+class StairAscentParameters:
+    #transitions trheshold
+    stance_to_push_off_th_gyr: float
+    stance_to_push_off_th_roll: float
+    push_off_to_swing_th_gyr: float             
+    push_off_to_swing_th_roll: float           
+    push_off_to_swing_pr_roll: float           
+    swing_to_step_up_th_gyr: float            
+    swing_to_step_up_th_roll: float            
+    swing_to_step_up_inactivity_dur: float    
+    step_up_to_stance_th_gyr_range: float     
+    step_up_to_stance_th_roll: float           
+    # for the torque rising
+    risetime: float                           
 
 
 @dataclass
@@ -493,7 +510,7 @@ class SitToStandParameters:
 
 
 @dataclass
-class WalkingParameters:
+class WalkingParameters2:
     inactivity_gyr_threshold: float
     inactivity_idle_transition_time: float
     traj_shift: dict[MotorId, float]
@@ -502,6 +519,32 @@ class WalkingParameters:
     reset_phase_threshold: float
     inactivity_angle_threshold: float
     ramp_time: float
+
+@dataclass
+class WalkingParameters:
+    #transition trhesholds
+    idle_to_one_step_th_gyr: float
+    to_idle_inactivity_dur: float
+    one_step_to_stance_th_gyr: float
+    stance_to_swing_th_gyr: float
+    stance_to_swing_phase_threshold: float
+    swing_to_stance_th_gyr: float
+    swing_to_stance_phase_threshold: float
+    swing_to_stance_bending_dur: float
+
+    inactivity_gyr_threshold: float
+    inactivity_idle_transition_time: float
+    inactivity_time_step: float
+    first_stride_end_gyr: float
+    reset_phase_threshold: float
+    inactivity_angle_threshold: float
+
+
+@dataclass
+class HurdlesParameters:
+    stance_to_swing_th_roll_pr: float           
+    stance_to_swing_th_gyr_pr: float           
+    swing_to_stance_th_roll_pr: float
 
 
 @dataclass
