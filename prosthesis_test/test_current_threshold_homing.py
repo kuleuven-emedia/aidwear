@@ -33,7 +33,7 @@ import argparse
 import os
 import sys
 import time
-from typing import Optional, Dict, Any, Tuple
+from typing import Dict, Any
 from collections import deque
 import can
 
@@ -89,22 +89,27 @@ class CanBackend(can.Listener):
 
     def on_message_received(self, msg: can.Message) -> None:
         # Add support for other CAN devices (e.g. PMU, etc.), accounting for Arbitration IDs.
-        if msg.arbitration_id in [EncoderId.KNEE.value, EncoderId.ANKLE.value] and len(msg.data) >= 2:
+        if (
+            msg.arbitration_id in [EncoderId.KNEE.value, EncoderId.ANKLE.value]
+            and len(msg.data) >= 2
+        ):
             src_id = EncoderId(msg.arbitration_id)
 
             angle_raw = (msg.data[0] << 8) | msg.data[1]
 
-            error = (angle_raw >> 14) & 0x01 # verification error flag (bit 14)
+            error = (angle_raw >> 14) & 0x01  # verification error flag (bit 14)
 
             angle_data = angle_raw & 0x3FFF  # 14 data bits
-            angle_deg = angle_data * (360.0 / 16384.0) # Resolution of the 14 bit => 2^14 = 16384
+            angle_deg = angle_data * (
+                360.0 / 16384.0
+            )  # Resolution of the 14 bit => 2^14 = 16384
 
             self._encoder_latest_data[src_id].append(angle_deg)
 
 
 def run_current_threshold_homing(
     node_id: MotorId,
-    device_config: DeviceConfig,
+    device_config: EposDeviceConfig,
     homing_config: HomingConfig,
     poll_interval_s: int,
     is_mock: bool,
@@ -131,30 +136,35 @@ def run_current_threshold_homing(
     print(" MAXON EPOS4 CURRENT-THRESHOLD HOMING CALIBRATION")
     print("=" * 72)
     print(f" Node ID           : {node_id}")
-    print(f" Interface / Port  : {device_config.interface} / {device_config.port} ({device_config.baudrate} bps)")
-    print(f" Homing Method     : {homing_config.homing_method.name} ({homing_config.homing_method.value})")
+    print(
+        f" Interface / Port  : {device_config.interface} / {device_config.port} ({device_config.baudrate} bps)"
+    )
+    print(
+        f" Homing Method     : {homing_config.homing_method.name} ({homing_config.homing_method.value})"
+    )
     print(f" Crawl Speed       : {homing_config.speed_switch} RPM toward hardstop")
     print(f" Speed to Home Pos : {homing_config.speed_index} RPM")
     print(f" Acceleration      : {homing_config.acceleration} RPM/s")
     print(f" Current Threshold : {homing_config.current_threshold_ma} mA")
-    print(f" Home Offset       : {homing_config.home_offset_enc_ticks} counts (retreat from hardstop)")
+    print(
+        f" Home Offset       : {homing_config.home_offset_enc_ticks} counts (retreat from hardstop)"
+    )
     print(f" Home Position     : {homing_config.home_position_coordinate} counts")
     print(f" Timeout Limit     : {timeout_s:.1f} s")
-    print(f" Execution Mode    : {'MOCK SIMULATION' if is_mock else 'PHYSICAL HARDWARE'}")
+    print(
+        f" Execution Mode    : {'MOCK SIMULATION' if is_mock else 'PHYSICAL HARDWARE'}"
+    )
     print("=" * 72)
 
     encoder_latest_data: dict[EncoderId, deque[float]] = {
-        encoder_id: deque([0.0], maxlen=1)
-        for encoder_id in EncoderId
+        encoder_id: deque([0.0], maxlen=1) for encoder_id in EncoderId
     }
 
     can_bus = can.interface.Bus(channel="can0", interface="socketcan", fd=True)
     can_listener = CanBackend(
         encoder_latest_data=encoder_latest_data,
     )
-    can_notifier = can.Notifier(
-        bus=can_bus, listeners=[can_listener]
-    )
+    can_notifier = can.Notifier(bus=can_bus, listeners=[can_listener])
 
     handle = None
     owns_handle = handle is None
@@ -179,7 +189,9 @@ def run_current_threshold_homing(
                 device_config.interface,
                 device_config.port,
             )
-            set_protocol_stack_settings(handle, device_config.baudrate, device_config.timeout_ms)
+            set_protocol_stack_settings(
+                handle, device_config.baudrate, device_config.timeout_ms
+            )
             print(f"      Connected successfully. Device handle: {handle}")
 
         # Step 2: Clear faults & verify drive status
@@ -232,7 +244,9 @@ def run_current_threshold_homing(
         activate_homing_mode(handle, node_id)
         time.sleep(0.02)
 
-        print(f"      Initiating hardstop search ({homing_config.homing_method.name})...")
+        print(
+            f"      Initiating hardstop search ({homing_config.homing_method.name})..."
+        )
         hm_find_home(handle, node_id, homing_config.homing_method)
 
         # Step 6: Real-time telemetry monitoring loop
@@ -263,7 +277,10 @@ def run_current_threshold_homing(
                 )
 
             # Detect threshold event
-            if abs(cur_curr) >= homing_config.current_threshold_ma and not threshold_detected:
+            if (
+                abs(cur_curr) >= homing_config.current_threshold_ma
+                and not threshold_detected
+            ):
                 threshold_detected = True
                 hardstop_pos = cur_pos
 
@@ -368,7 +385,10 @@ def run_current_threshold_homing(
         with open(f"prosthesis_test/{node_id.name.lower()}_calibration.csv", "w") as f:
             f.write("time,abs_pos,inc_pos,vel,curr\n")
             f.writelines(
-                map(lambda s: f"{",".join(map(lambda e: str(e), s.values()))}\n", telemetry_samples)
+                map(
+                    lambda s: f"{','.join(map(lambda e: str(e), s.values()))}\n",
+                    telemetry_samples,
+                )
             )
 
 
@@ -421,7 +441,10 @@ def main():
         "--method",
         type=int,
         default=HomingMethod.CURRENT_THRESHOLD_POSITIVE_SPEED.value,
-        choices=[HomingMethod.CURRENT_THRESHOLD_POSITIVE_SPEED.value, HomingMethod.CURRENT_THRESHOLD_NEGATIVE_SPEED.value],
+        choices=[
+            HomingMethod.CURRENT_THRESHOLD_POSITIVE_SPEED.value,
+            HomingMethod.CURRENT_THRESHOLD_NEGATIVE_SPEED.value,
+        ],
         help="Direction of the current threshold based homing method",
     )
     parser.add_argument(
@@ -497,7 +520,9 @@ def main():
         homing_method=method,
         acceleration=args.acceleration,
         speed_switch=args.crawl_speed,
-        speed_index=args.retreat_speed if args.retreat_speed is not None else args.crawl_speed,
+        speed_index=args.retreat_speed
+        if args.retreat_speed is not None
+        else args.crawl_speed,
         current_threshold_ma=args.current_threshold,
         home_offset_enc_ticks=args.home_offset,
         home_position_coordinate=args.home_position,

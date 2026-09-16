@@ -13,6 +13,6 @@ diff_indices = [i for i, l in enumerate(lines) if l.startswith("--- aidwear")]
 
 for i, idx in enumerate(diff_indices):
     start = idx
-    end = diff_indices[i+1] if i + 1 < len(diff_indices) else len(lines)
+    end = diff_indices[i + 1] if i + 1 < len(diff_indices) else len(lines)
     file_lines = lines[start:end]
     print(f"{lines[idx].strip()} ({len(file_lines)} lines)")

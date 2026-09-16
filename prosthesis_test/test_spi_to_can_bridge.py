@@ -11,11 +11,11 @@ from hermes.utils.time_utils import get_time_str, get_time
 
 def log(msg):
     ts = get_time_str(get_time(), format="%H:%M:%S.%f")[:-3]
-    print(f"[{ts}] {msg}")    
+    print(f"[{ts}] {msg}")
 
 
 def listen_can():
-    bus = can.interface.Bus(channel='can0', interface='socketcan', fd=True) # bustype
+    bus = can.interface.Bus(channel="can0", interface="socketcan", fd=True)  # bustype
     print("Reading CAN data bus...\n")
     try:
         while True:
@@ -30,17 +30,25 @@ def listen_can():
                 if len(data) >= 2:
                     angle_raw = (data[0] << 8) | data[1]
 
-                    error = (angle_raw >> 14) & 0x01 # verification error flag (bit 14)
+                    error = (angle_raw >> 14) & 0x01  # verification error flag (bit 14)
 
                     angle_data = angle_raw & 0x3FFF  # 14 data bits
-                    angle_deg = angle_data * (360.0 / 16384.0) # Resolution of the 14 bit => 2^14 = 16384
-                    
-                    log(f"[{EncoderId(id).name}] AS5048A SPI -> Raw = {bin(angle_raw)[2:].zfill(16)} | Angle = {angle_deg:06.2f}deg | Steps = {angle_data:05}")
+                    angle_deg = angle_data * (
+                        360.0 / 16384.0
+                    )  # Resolution of the 14 bit => 2^14 = 16384
+
+                    log(
+                        f"[{EncoderId(id).name}] AS5048A SPI -> Raw = {bin(angle_raw)[2:].zfill(16)} | Angle = {angle_deg:06.2f}deg | Steps = {angle_data:05}"
+                    )
                 else:
-                    log(f"[{EncoderId(id).name}] AS5048A SPI -> Data too short | Raw = {data.hex()}")
+                    log(
+                        f"[{EncoderId(id).name}] AS5048A SPI -> Data too short | Raw = {data.hex()}"
+                    )
 
             else:
-                log(f"[{hex(id)}] unknowned bus -> raw data = {data.hex()} (DLC={len(data)})")
+                log(
+                    f"[{hex(id)}] unknowned bus -> raw data = {data.hex()} (DLC={len(data)})"
+                )
 
     except KeyboardInterrupt:
         print("\n interruption asked by the user")

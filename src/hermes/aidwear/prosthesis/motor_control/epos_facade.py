@@ -3,7 +3,7 @@ Filename: hermes/aidwear/prosthesis/motor_control/epos_facade.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-09-13
 Version: 1.0
-Description: 
+Description:
 """
 
 from __future__ import annotations
@@ -56,23 +56,26 @@ from hermes.aidwear.prosthesis.motor_control.epos_commands import (
 )
 
 __all__ = [
-    'init',
-    'shutdown',
-    'connect',
-    'enable',
-    'disable',
-    'start_homing',
-    'stop_homing',
-    'quick_stop',
-    'get_motor_data',
-    'get_homing_state',
-    'wait_for_homing',
+    "init",
+    "shutdown",
+    "connect",
+    "enable",
+    "disable",
+    "start_homing",
+    "stop_homing",
+    "quick_stop",
+    "get_motor_data",
+    "get_homing_state",
+    "wait_for_homing",
 ]
+
 
 def init(
     config: EposDeviceConfig,
 ) -> epos_handle:
-    print(f"Opening communication channel to {config.device.name} devices...", flush=True)
+    print(
+        f"Opening communication channel to {config.device.name} devices...", flush=True
+    )
 
     handle = open_device(
         device=config.device,
@@ -115,7 +118,10 @@ def connect(
 
     start_pos = get_position(handle, motor_id)
     start_curr = get_current(handle, motor_id)
-    print(f"Initial State: Position = {start_pos} QC, Current = {start_curr} mA", flush=True)
+    print(
+        f"Initial State: Position = {start_pos} QC, Current = {start_curr} mA",
+        flush=True,
+    )
 
 
 def enable(

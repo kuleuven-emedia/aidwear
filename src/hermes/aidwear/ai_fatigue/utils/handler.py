@@ -19,7 +19,7 @@ from multiprocessing.synchronize import Event as _Event
 from queue import Empty
 
 from hermes.utils.time_utils import get_time, init_time
-from src.hermes.aidwear.ai_intent.utils.datastructures import SharedTensorCircularBuffer
+from hermes.aidwear.ai_intent.utils.datastructures import SharedTensorCircularBuffer
 
 from .config import load_config
 from .types import Config, FatigueModalityType, FatigueResult, OutputMode
@@ -167,7 +167,7 @@ class FatigueEstimatorHandler:
     def _measured_fs(n: int, w_start: float, w_end: float, fallback: float) -> float:
         dur = w_end - w_start
         fs = (n - 1) / dur if (w_start > 0.0 and dur > 0 and n > 1) else fallback
-        # Considering valid if >0.5x and <2x the fallback 
+        # Considering valid if >0.5x and <2x the fallback
         return fs if 0.5 * fallback <= fs <= 2.0 * fallback else fallback
 
     @staticmethod

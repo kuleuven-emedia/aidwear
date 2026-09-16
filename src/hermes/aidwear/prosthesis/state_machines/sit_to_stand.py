@@ -40,14 +40,14 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
 
     # Transitions.
     cycle = (
-        stance.to(stance, unless="stance_to_lowering")
-        | stance.to(lowering, cond="stance_to_lowering")
-        | lowering.to(lowering, unless="lowering_to_sitting")
-        | lowering.to(sitting, cond="lowering_to_sitting")
-        | sitting.to(sitting, unless="sitting_to_rising")
-        | sitting.to(rising, cond="sitting_to_rising")
-        | rising.to(rising, unless="rising_to_stance")
-        | rising.to(stance, cond="rising_to_stance")
+        stance.to(stance, unless="is_stance_to_lowering")
+        | stance.to(lowering, cond="is_stance_to_lowering")
+        | lowering.to(lowering, unless="is_lowering_to_sitting")
+        | lowering.to(sitting, cond="is_lowering_to_sitting")
+        | sitting.to(sitting, unless="is_sitting_to_rising")
+        | sitting.to(rising, cond="is_sitting_to_rising")
+        | rising.to(rising, unless="is_rising_to_stance")
+        | rising.to(stance, cond="is_rising_to_stance")
     )
 
     def __init__(self, ctx: ModeContext):
@@ -65,44 +65,44 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
 
         self._ctx = ctx
 
-        # Personalized parameters.
-        thresholds = ctx.config_manager.get_section("sit_to_stand")["thresholds"]
-        timings = ctx.config_manager.get_section("sit_to_stand")["timings"]
-        phase = ctx.config_manager.get_section("sit_to_stand")["phase"]
-        self._is_biodex = ctx.config_manager.get_section("biodex")["enabled"]
+        # # Personalized parameters.
+        # thresholds = ctx.config_manager.get_section("sit_to_stand")["thresholds"]
+        # timings = ctx.config_manager.get_section("sit_to_stand")["timings"]
+        # phase = ctx.config_manager.get_section("sit_to_stand")["phase"]
+        # self._is_biodex = ctx.config_manager.get_section("biodex")["enabled"]
 
-        self._param = SitToStandParameters(
-            # Transition thresholds.
-            stance_to_lowering_th_gyr=thresholds["stance_to_lowering_th_gyr"],
-            stance_to_lowering_th_roll=thresholds["stance_to_lowering_th_roll"],
-            stance_to_lowering_torso_roll=thresholds["stance_to_lowering_torso_roll"],
-            stance_to_lowering_kn_roll=thresholds["stance_to_lowering_kn_roll"],
-            lowering_to_sitting_th_gyr_min=thresholds["lowering_to_sitting_th_gyr_min"],
-            lowering_to_sitting_th_gyr_max=thresholds["lowering_to_sitting_th_gyr_max"],
-            lowering_to_sitting_phase_threshold=thresholds[
-                "lowering_to_sitting_phase_threshold"
-            ],
-            sitting_to_rising_th_gyr=thresholds["sitting_to_rising_th_gyr"],
-            sitting_to_rising_phase_threshold=thresholds[
-                "sitting_to_rising_phase_threshold"
-            ],
-            sitting_to_rising_idle_dur_min=thresholds["sitting_to_rising_idle_dur_min"],
-            rising_to_stance_th_gyr_min=thresholds["rising_to_stance_th_gyr_min"],
-            rising_to_stance_th_gyr_max=thresholds["rising_to_stance_th_gyr_max"],
-            rising_to_stance_kn_roll=thresholds["rising_to_stance_kn_roll"],
-            rising_to_stance_phase_threshold=thresholds[
-                "rising_to_stance_phase_threshold"
-            ],
-            reset_phase_threshold=thresholds["reset_phase_threshold"],
-            inactivity_angle_threshold=thresholds["inactivity_angle_threshold"],
-            # Impedance gains and timing.
-            imp_gain_rise_time=timings["imp_gain_rise_time"],
-            gain_step=timings["gain_step"],
-            active_ramp_time=timings["active_ramp_time"],
-            # Phase calculation parameters.
-            phase_start_angle=phase["phase_start_angle"],
-            phase_end_angle=phase["phase_end_angle"],
-        )
+        # self._param = SitToStandParameters(
+        #     # Transition thresholds.
+        #     stance_to_lowering_th_gyr=thresholds["stance_to_lowering_th_gyr"],
+        #     stance_to_lowering_th_roll=thresholds["stance_to_lowering_th_roll"],
+        #     stance_to_lowering_torso_roll=thresholds["stance_to_lowering_torso_roll"],
+        #     stance_to_lowering_kn_roll=thresholds["stance_to_lowering_kn_roll"],
+        #     lowering_to_sitting_th_gyr_min=thresholds["lowering_to_sitting_th_gyr_min"],
+        #     lowering_to_sitting_th_gyr_max=thresholds["lowering_to_sitting_th_gyr_max"],
+        #     lowering_to_sitting_phase_threshold=thresholds[
+        #         "lowering_to_sitting_phase_threshold"
+        #     ],
+        #     sitting_to_rising_th_gyr=thresholds["sitting_to_rising_th_gyr"],
+        #     sitting_to_rising_phase_threshold=thresholds[
+        #         "sitting_to_rising_phase_threshold"
+        #     ],
+        #     sitting_to_rising_idle_dur_min=thresholds["sitting_to_rising_idle_dur_min"],
+        #     rising_to_stance_th_gyr_min=thresholds["rising_to_stance_th_gyr_min"],
+        #     rising_to_stance_th_gyr_max=thresholds["rising_to_stance_th_gyr_max"],
+        #     rising_to_stance_kn_roll=thresholds["rising_to_stance_kn_roll"],
+        #     rising_to_stance_phase_threshold=thresholds[
+        #         "rising_to_stance_phase_threshold"
+        #     ],
+        #     reset_phase_threshold=thresholds["reset_phase_threshold"],
+        #     inactivity_angle_threshold=thresholds["inactivity_angle_threshold"],
+        #     # Impedance gains and timing.
+        #     imp_gain_rise_time=timings["imp_gain_rise_time"],
+        #     gain_step=timings["gain_step"],
+        #     active_ramp_time=timings["active_ramp_time"],
+        #     # Phase calculation parameters.
+        #     phase_start_angle=phase["phase_start_angle"],
+        #     phase_end_angle=phase["phase_end_angle"],
+        # )
 
         super(SitToStand, self).__init__()
 
@@ -114,7 +114,7 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
                 StateTransition(timestamp=get_time(), state=state.value)
             )
 
-    def stance_to_lowering(self):
+    def is_stance_to_lowering(self):
         return (
             self._thigh_right_gyr > self._param.stance_to_lowering_th_gyr
             and self._thigh_left_gyr > self._param.stance_to_lowering_th_gyr
@@ -125,7 +125,7 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
             and self._knee_right_roll > self._param.stance_to_lowering_kn_roll
         )
 
-    def lowering_to_sitting(self):
+    def is_lowering_to_sitting(self):
         return (
             self._param.lowering_to_sitting_th_gyr_min
             < self._thigh_right_gyr
@@ -136,7 +136,7 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
             and self._phase > self._param.lowering_to_sitting_phase_threshold
         )
 
-    def sitting_to_rising(self):
+    def is_sitting_to_rising(self):
         return (
             self._thigh_right_gyr > self._param.sitting_to_rising_th_gyr
             and self._thigh_left_gyr > self._param.sitting_to_rising_th_gyr
@@ -144,14 +144,14 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
             and self._idle_dur >= self._param.sitting_to_rising_idle_dur_min
         )
 
-    def rising_to_stance(self):
+    def is_rising_to_stance(self):
         return (
-            #self._param.rising_to_stance_th_gyr_min
-            #< self._thigh_right_gyr
-            #< self._param.rising_to_stance_th_gyr_max
-            #and self._param.rising_to_stance_th_gyr_min
-            #< self._thigh_left_gyr
-            #< self._param.rising_to_stance_th_gyr_max and 
+            # self._param.rising_to_stance_th_gyr_min
+            # < self._thigh_right_gyr
+            # < self._param.rising_to_stance_th_gyr_max
+            # and self._param.rising_to_stance_th_gyr_min
+            # < self._thigh_left_gyr
+            # < self._param.rising_to_stance_th_gyr_max and
             self._knee_left_roll < self._param.rising_to_stance_kn_roll
             and self._knee_right_roll < self._param.rising_to_stance_kn_roll
             and self._phase < self._param.rising_to_stance_phase_threshold
@@ -163,394 +163,28 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
             next_fatigue = self._ctx.next_fatigue.next_value.value
         with self._ctx.next_mode.lock():
             next_mode = self._ctx.next_mode.next_value.value
-        
-        if self._token.value == 0:
-            imp_rise_time = 0.000000001
-        else:
-            imp_rise_time = self._param.imp_gain_rise_time
-
-        if next_mode in [
-            ModeEnum.STAIR_ASCENT.value.id,
-            ModeEnum.STAIR_DESCENT.value.id,
-        ]:
-            self._token.value = 0
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(int(next_fatigue)) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._idle_dur += self._param.gain_step
-        self._active_dur = 0
+        # TODO: add motor control logic for stance.
 
     def on_enter_lowering(self):
         with self._ctx.next_fatigue.lock():
             next_fatigue = self._ctx.next_fatigue.next_value.value
         with self._ctx.next_mode.lock():
             next_mode = self._ctx.next_mode.next_value.value
-
-        self._token.value = 0
-        ramp_time = self._param.active_ramp_time
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(position=0, velocity=0, acceleration=0),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._active_dur += self._param.gain_step
-        self._idle_dur = 0
+        # TODO: add motor control logic for lowering.
 
     def on_enter_sitting(self):
         with self._ctx.next_fatigue.lock():
             next_fatigue = self._ctx.next_fatigue.next_value.value
         with self._ctx.next_mode.lock():
             next_mode = self._ctx.next_mode.next_value.value
-
-        imp_rise_time = self._param.imp_gain_rise_time
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * max(v * (imp_rise_time - self._idle_dur) / imp_rise_time, 0)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._idle_dur += self._param.gain_step
-        self._active_dur = 0
+        # TODO: add motor control logic for sitting.
 
     def on_enter_rising(self):
         with self._ctx.next_fatigue.lock():
             next_fatigue = self._ctx.next_fatigue.next_value.value
         with self._ctx.next_mode.lock():
             next_mode = self._ctx.next_mode.next_value.value
-
-        ramp_time = self._param.active_ramp_time
-
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.HIP_RIGHT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.HIP_RIGHT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK80_8.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK80_8,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-        can_set_position_impedance(
-            bus=self._bus,
-            motor_id=MotorId.KNEE_LEFT,
-            motor_latest_data=self._motor_latest_data,
-            ref=ServoReference(
-                position=0,
-                velocity=0,
-                acceleration=0,
-            ),
-            K=ServoImpedanceGains(
-                **{
-                    k: 0.3
-                    * self.performance_factor(MotorId.KNEE_LEFT)
-                    * max(0.2, int(next_fatigue) / 100)
-                    * min(v * self._active_dur / ramp_time, v)
-                    for k, v in asdict(self._K[ServoMotorEnum.AK10_9.name]).items()
-                }
-            ),
-            motor_type=ServoMotorEnum.AK10_9,
-            motor_command_queue=self._motor_command_queue,
-            is_keep_data_event=self._is_keep_data_event,
-        )
-
-        self._active_dur += self._param.gain_step
-        self._idle_dur = 0
+        # TODO: add motor control logic for rising.
 
     def update_sensor_values(
         self,
@@ -591,14 +225,4 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
         self.send("cycle")
 
     def is_safe_to_switch(self) -> bool:
-        return self.current_state.value == StateEnum.SitToStand.STANCE.value
-
-    def send_data(self) -> dict:
-        data = {
-            "Lth_gyr": self._thigh_left_gyr,
-            "Lth_roll": self._thigh_left_roll,
-            "torso_roll": self._torso_roll,
-            "phase": self._phase,
-            "state": str(self.current_state),
-        }
-        return data
+        return True

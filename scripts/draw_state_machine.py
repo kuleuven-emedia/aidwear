@@ -142,11 +142,17 @@ def import_module_from_file(file_path: Path):
     raise ImportError(f"Could not load module from {file_path}")
 
 
-def find_state_machines(module, class_name: Optional[str] = None) -> list[Type[StateMachine]]:
+def find_state_machines(
+    module, class_name: Optional[str] = None
+) -> list[Type[StateMachine]]:
     """Discover StateMachine subclasses defined or imported in a module."""
     machines = []
     for name, obj in inspect.getmembers(module, inspect.isclass):
-        if issubclass(obj, StateMachine) and obj is not StateMachine and obj is not StateChart:
+        if (
+            issubclass(obj, StateMachine)
+            and obj is not StateMachine
+            and obj is not StateChart
+        ):
             # Avoid base abstract classes without states
             if hasattr(obj, "states") and len(obj.states) > 0:
                 if class_name is None or name.lower() == class_name.lower():
@@ -181,12 +187,14 @@ def analyze_correctness(sm_cls: Type[StateMachine]) -> dict:
                     self_loops.append((state.name, t.event))
 
             cond_repr = [str(c) for c in getattr(t, "cond", [])]
-            transitions.append({
-                "source": state.name,
-                "event": t.event,
-                "targets": [target.name for target in targets],
-                "conditions": cond_repr,
-            })
+            transitions.append(
+                {
+                    "source": state.name,
+                    "event": t.event,
+                    "targets": [target.name for target in targets],
+                    "conditions": cond_repr,
+                }
+            )
 
     # Sanity checks
     issues = []
@@ -195,23 +203,31 @@ def analyze_correctness(sm_cls: Type[StateMachine]) -> dict:
     if len(initial_states) == 0:
         issues.append("No initial state defined.")
     elif len(initial_states) > 1:
-        warnings.append(f"Multiple initial states defined: {[s.name for s in initial_states]}")
+        warnings.append(
+            f"Multiple initial states defined: {[s.name for s in initial_states]}"
+        )
 
     # Unreachable states (no incoming transitions and not initial)
     unreachable = [
-        s.name for s in states
+        s.name
+        for s in states
         if incoming_counts[s.id] == 0 and not getattr(s, "initial", False)
     ]
     if unreachable:
-        warnings.append(f"Potentially unreachable states (no incoming transitions): {unreachable}")
+        warnings.append(
+            f"Potentially unreachable states (no incoming transitions): {unreachable}"
+        )
 
     # Trap states (non-final states with no outgoing transitions)
     trap_states = [
-        s.name for s in states
+        s.name
+        for s in states
         if outgoing_counts[s.id] == 0 and not getattr(s, "final", False)
     ]
     if trap_states:
-        warnings.append(f"Trap states (non-final with no outgoing transitions): {trap_states}")
+        warnings.append(
+            f"Trap states (non-final with no outgoing transitions): {trap_states}"
+        )
 
     return {
         "class_name": sm_cls.__name__,
@@ -240,7 +256,9 @@ def print_analysis(analysis: dict):
             attrs.append("INITIAL")
         if getattr(s, "final", False):
             attrs.append("FINAL")
-        val_str = f"value={s.value}" if hasattr(s, "value") and s.value is not None else ""
+        val_str = (
+            f"value={s.value}" if hasattr(s, "value") and s.value is not None else ""
+        )
         attr_str = f" ({', '.join(attrs)})" if attrs else ""
         val_display = f" [{val_str}]" if val_str else ""
         print(f"  * {s.name:<18}{attr_str}{val_display}")
@@ -253,7 +271,9 @@ def print_analysis(analysis: dict):
 
     print("\n[Correctness Diagnostics]")
     if not analysis["issues"] and not analysis["warnings"]:
-        print("  [OK] All structural sanity checks passed (well-connected states and valid initial state).")
+        print(
+            "  [OK] All structural sanity checks passed (well-connected states and valid initial state)."
+        )
     else:
         for issue in analysis["issues"]:
             print(f"  [ERROR] {issue}")
@@ -290,7 +310,9 @@ def generate_diagram(
 
     # Optionally save .dot source
     if save_dot or out_format == "dot":
-        dot_out = output_path.with_suffix(".dot") if out_format != "dot" else output_path
+        dot_out = (
+            output_path.with_suffix(".dot") if out_format != "dot" else output_path
+        )
         dot_out.parent.mkdir(parents=True, exist_ok=True)
         dot_out.write_text(dot_source, encoding="utf-8")
         print(f"Saved Graphviz DOT source to: {dot_out}")
@@ -304,10 +326,14 @@ def generate_diagram(
     if dot_executable:
         try:
             dot_graph.write(str(output_path), format=out_format)
-            print(f"Rendered {out_format.upper()} diagram via local Graphviz: {output_path}")
+            print(
+                f"Rendered {out_format.upper()} diagram via local Graphviz: {output_path}"
+            )
             return output_path
         except Exception as e:
-            print(f"Local Graphviz rendering failed ({e}), falling back to online rendering...")
+            print(
+                f"Local Graphviz rendering failed ({e}), falling back to online rendering..."
+            )
 
     if no_online:
         print(
@@ -437,7 +463,10 @@ def main():
             file=sys.stderr,
         )
         if available_classes:
-            print(f"Classes found in module: {', '.join(available_classes)}", file=sys.stderr)
+            print(
+                f"Classes found in module: {', '.join(available_classes)}",
+                file=sys.stderr,
+            )
         sys.exit(1)
 
     for sm_cls in machines:
@@ -453,7 +482,9 @@ def main():
             out_path = Path(args.output)
             if len(machines) > 1:
                 # Disambiguate if multiple machines
-                out_path = out_path.with_name(f"{sm_cls.__name__.lower()}_{out_path.name}")
+                out_path = out_path.with_name(
+                    f"{sm_cls.__name__.lower()}_{out_path.name}"
+                )
         else:
             out_path = Path(f"{sm_cls.__name__.lower()}.{args.format}")
 
@@ -468,6 +499,7 @@ def main():
 
         if args.view and result_path.exists():
             import webbrowser
+
             webbrowser.open(result_path.as_uri())
 
 

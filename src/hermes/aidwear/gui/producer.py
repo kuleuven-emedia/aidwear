@@ -17,7 +17,7 @@ from hermes.utils.types import LoggingSpec
 from hermes.base.nodes.producer import Producer
 import numpy as np
 
-from src.hermes.aidwear.prosthesis.utils.types import ModeEnum
+from hermes.aidwear.prosthesis.utils.types import ModeEnum
 
 from .utils.types import GuiCommandType
 from .data_container import PhoneGuiDataContainer
@@ -26,7 +26,7 @@ from .data_container import PhoneGuiDataContainer
 class PhoneGuiProducer(Producer):
     def __init__(
         self,
-        topic: str,
+        node_id: str,
         host_ip: str,
         phone_ip: str,
         phone_port: int,
@@ -46,7 +46,7 @@ class PhoneGuiProducer(Producer):
         }
 
         super().__init__(
-            topic=topic,
+            node_id=node_id,
             host_ip=host_ip,
             data_out_spec=data_out_spec,
             logging_spec=logging_spec,
@@ -96,9 +96,8 @@ class PhoneGuiProducer(Producer):
 
                 print(f"User selected transition to: {mode.value.text}", flush=True)
                 self._publish(
-                    "%s.data" % self.topic,
                     process_time_s=get_time(),
-                    data={
+                    new_data={
                         "intent": {
                             "toa_s": np.array([[toa_s]], dtype=np.float64),
                             "timestamp": np.array([[android_timestamp / 1000.0]], dtype=np.float64),
@@ -119,9 +118,8 @@ class PhoneGuiProducer(Producer):
                     flush=True,
                 )
                 self._publish(
-                    "%s.data" % self.topic,
                     process_time_s=get_time(),
-                    data={
+                    new_data={
                         "fatigue": {
                             "toa_s": np.array([[toa_s]], dtype=np.float64),
                             "timestamp": np.array([[android_timestamp / 1000.0]], dtype=np.float64),

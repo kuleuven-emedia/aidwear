@@ -21,7 +21,6 @@ from ..utils.types import (
 )
 
 
-
 class Hurdle(StateMachine, ProsthesisStateMachine):
     # States.
     stance = State(
@@ -34,10 +33,10 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
 
     # Transitions.
     cycle = (
-        stance.to(stance, unless="stance_to_swing")
-        | stance.to(swing, cond="stance_to_swing")    # T1
-        | swing.to(swing, unless="swing_to_stance")
-        | swing.to(stance, cond="swing_to_stance")    # T2
+        stance.to(stance, unless="is_stance_to_swing")
+        | stance.to(swing, cond="is_stance_to_swing")  # T1
+        | swing.to(swing, unless="is_swing_to_stance")
+        | swing.to(stance, cond="is_swing_to_stance")  # T2
     )
 
     def __init__(self, ctx: ModeContext):
@@ -47,7 +46,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self._knee_reference = 0        # θ_knee,pr reference
         self._ankle_reference = 0       # θ_ankle,pr reference
         self._thigh_swing_start = 20
-        
+
         self._knee_swing_start = 0
 
         # Positive gain means that the knee follows the thigh in the same
@@ -62,21 +61,21 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self._phase_estimate_queue = ctx.phase_estimate_queue
         self._motor_command_queue = ctx.motor_command_queue
 
-# In a real scenario, we would load personalized parameters from the configuration file.
-# Personalized parameters.
-#        thresholds = ctx.config_manager.get_section("hurdles")["thresholds"]
-#        timings = ctx.config_manager.get_section("hurdles")["timings"]
+        # In a real scenario, we would load personalized parameters from the configuration file.
+        # Personalized parameters.
+        #        thresholds = ctx.config_manager.get_section("hurdles")["thresholds"]
+        #        timings = ctx.config_manager.get_section("hurdles")["timings"]
 
-         # Personalized parameters.
-#        self._param = HurdlesParameters(
-#            stance_to_swing_th_roll_pr = thresholds["stance_to_swing_th_roll_pr"],
-#            stance_to_swing_th_gyr_pr = thresholds[
-#                "stance_to_swing_th_gyr_pr"
-#            ],
-#            swing_to_stance_th_roll_pr = thresholds[
-#                "swing_to_stance_th_roll_pr"
-#            ],  
-#        )
+        # Personalized parameters.
+        #        self._param = HurdlesParameters(
+        #            stance_to_swing_th_roll_pr = thresholds["stance_to_swing_th_roll_pr"],
+        #            stance_to_swing_th_gyr_pr = thresholds[
+        #                "stance_to_swing_th_gyr_pr"
+        #            ],
+        #            swing_to_stance_th_roll_pr = thresholds[
+        #                "swing_to_stance_th_roll_pr"
+        #            ],
+        #        )
 
         # Personalized parameters.
         self._param = HurdlesParameters(
@@ -96,25 +95,26 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         )
 
     # T1: Stance -> Swing
-    def stance_to_swing(self):
+    def is_stance_to_swing(self):
         return (
             self._thigh_pr_roll > self._param.stance_to_swing_th_roll_pr
             and self._thigh_pr_gyr > self._param.stance_to_swing_th_gyr_pr
         )
 
     # T2: Swing -> Stance
-    def swing_to_stance(self):
+    def is_swing_to_stance(self):
         return self._thigh_pr_roll < self._param.swing_to_stance_th_roll_pr
-    
-    # Actions.                                                 
+
+    # Actions.
     def on_enter_stance(self):
         self._knee_reference = self._knee_swing_start
         print("hurdle: stance", flush=True)
-        
+        # TODO: add motor control logic for stance.
+
     def on_enter_swing(self):
         # Start the reference from the measured knee angle at swing onset.
         print("hurdle: swing", flush=True)
-    
+        # TODO: add motor control logic for swing.
 
     def _update_motors_reference(self):
         """Make the knee reference follow changes in the thigh angle."""
@@ -157,73 +157,4 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self.send("cycle")
 
     def is_safe_to_switch(self) -> bool:
-        return self._is_safe
-
-    def send_data(self) -> dict:
-        data = {
-            "Lth_gyr": self._thigh_left_gyr,
-            "Lth_roll": self._thigh_left_roll,
-            "torso_roll": self._torso_roll,
-            "phase": self._phase,
-            "state": str(self.current_state),
-
-            "knee_reference": self._knee_reference,
-            "P_kn_traj": float(
-                self._trajectory[MotorId.KNEE][self._knee_reference]
-            ),
-            "P_an_traj": float(
-                self._trajectory[MotorId.ANKLE][self._ankle_reference]
-                ),
-        }
-        return data
-    
-#    def update_sensor_values(
-        self,
-        torso_angle: float = np.nan,
-        thigh_left_angle: float = np.nan,
-        thigh_right_angle: float = np.nan,
-        thigh_left_roll: float = np.nan,
-        thigh_right_roll: float = np.nan,
-        knee_left_roll: float = np.nan,
-        knee_right_roll: float = np.nan,
-        thigh_left_gyr: int = 0,
-        thigh_right_gyr: int = 0,
-        knee_left_gyr: int = 0,
-        knee_right_gyr: int = 0,
-        dt: float = 0.01,
-#    ):
-        self._thigh_left_gyr = thigh_left_gyr
-        self._thigh_left_roll = thigh_left_roll
-        self._knee_left_roll = knee_left_roll
-        self._thigh_right_gyr = thigh_right_gyr
-        self._thigh_right_roll = thigh_right_roll
-        self._knee_right_roll = knee_right_roll
-        self._torso_roll = torso_angle
-
-        # Phase now uses configurable start and end angles.
-        start_angle = self._param.phase_start_angle
-        end_angle = self._param.phase_end_angle
-        avg_roll = (thigh_left_roll + thigh_right_roll) / 2
-        self._phase = (start_angle - avg_roll) / (start_angle - end_angle) * 100
-
-        # Push `phase` estimate into the upstream queue.
-        if not self._is_stop_new_data_event.is_set():
-            self._phase_estimate_queue.put(
-                PhaseEstimate(timestamp=get_time(), phase=self._phase)
-            )
-
-#    def step(self) -> None:
-        self.send("cycle")
-
-#    def is_safe_to_switch(self) -> bool:
-        return self.current_state.value == StateEnum.SitToStand.STANCE.value
-
-#    def send_data(self) -> dict:
-        data = {
-            "Lth_gyr": self._thigh_left_gyr,
-            "Lth_roll": self._thigh_left_roll,
-            "torso_roll": self._torso_roll,
-            "phase": self._phase,
-            "state": str(self.current_state),
-        }
-        return data
+        return True

@@ -13,11 +13,7 @@ from hermes.base.data_container import DataContainer
 
 
 class NotesDataContainer(DataContainer):
-    def __init__(
-        self,
-        buf_len: Optional[int] = 1000,
-        **_
-    ) -> None:
+    def __init__(self, buf_len: Optional[int] = 1000, **_) -> None:
         super().__init__()
 
         self.add_channel(

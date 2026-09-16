@@ -553,7 +553,7 @@ class ProsthesisDataContainer(DataContainer):
                 ]
             )
 
-        # Absolute joint encoder data. 
+        # Absolute joint encoder data.
         for motor_name in motors.keys():
             dev = f"encoder_{motor_name}"
             self._data_notes[dev]["toa_s"] = OrderedDict(

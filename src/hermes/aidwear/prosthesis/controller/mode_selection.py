@@ -73,6 +73,7 @@ class ModeSelectionMachine(StateMachine):
     _sequence_id: int
     _source: int
 
+    # TODO: update later with safe transitions between FSMs as needed.
     # From any to `idle`.
     to_idle = idle.from_.any()
 
@@ -100,69 +101,30 @@ class ModeSelectionMachine(StateMachine):
         # Stores when the exo transitioned to a new locomotion mode, and based on which `sequence_id` from upstream LMR.
         self._ctx.mode_changed_queue.put(
             ModeTransition(
-                timestamp=get_time(), mode=state.value, sequence_id=self._sequence_id, source=self._source,
+                timestamp=get_time(),
+                mode=state.value,
+                sequence_id=self._sequence_id,
+                source=self._source,
             )
         )
         print(f"[Prosthesis] Completed transition to {state.name}", flush=True)
 
-    # TODO: Internal checks evaluated on each upstream state transition request to the operation mode FSM (for safe transitions).
-    def is_safe_idle_to_walking(self) -> bool:
-        return True or self._is_immediate_mode_switch
-
-    def is_safe_sit_to_stand_to_walking(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_stair_ascent_to_walking(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_stair_descent_to_walking(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_idle_to_sit_to_stand(self) -> bool:
-        return True or self._is_immediate_mode_switch
-
-    def is_safe_walking_to_sit_to_stand(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_stair_ascent_to_sit_to_stand(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_stair_descent_to_sit_to_stand(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_idle_to_stair_ascent(self) -> bool:
-        return True or self._is_immediate_mode_switch
-
-    def is_safe_walking_to_stair_ascent(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_sit_to_stand_to_stair_ascent(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_stair_descent_to_stair_ascent(self) -> bool:
-        return False or self._is_immediate_mode_switch
-
-    def is_safe_idle_to_stair_descent(self) -> bool:
-        return True or self._is_immediate_mode_switch
-
-    def is_safe_walking_to_stair_descent(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_sit_to_stand_to_stair_descent(self) -> bool:
-        return self._exo_mode.is_safe_to_switch() or self._is_immediate_mode_switch
-
-    def is_safe_stair_ascent_to_stair_descent(self) -> bool:
-        return False or self._is_immediate_mode_switch
+    # TODO: Add internal checks evaluated on each upstream state transition request.
+    #   Provides a predicate whether transition to the next mode FSM is safe.
 
     # Transition callbacks.
-    # TODO: `watchdog` based `ConfigManager` will break (not live update config from files anymore) if a state machine is not instantiated on every transition.
+    # NOTE: `watchdog` based `ConfigManager` will break if a state machine is not instantiated on every mode transition.
+    #   (not live update config from files anymore)
     def on_enter_idle(self):
         self._exo_mode = Idle(self._ctx)
+
+    def on_exit_idle(self):
+        pass
 
     def on_enter_hurdle(self):
         self._exo_mode = Hurdle(self._ctx)
 
-    def on_exit_idle(self):
+    def on_exit_hurdle(self):
         pass
 
     def on_enter_walking(self):

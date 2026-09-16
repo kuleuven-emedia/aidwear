@@ -33,7 +33,10 @@ class CanBackend(can.Listener):
 
     def on_message_received(self, msg: can.Message) -> None:
         # Add support for other CAN devices (e.g. PMU, etc.), accounting for Arbitration IDs.
-        if msg.arbitration_id in [EncoderId.KNEE.value, EncoderId.ANKLE.value] and len(msg.data) >= 2:
+        if (
+            msg.arbitration_id in [EncoderId.KNEE.value, EncoderId.ANKLE.value]
+            and len(msg.data) >= 2
+        ):
             src_id = EncoderId(msg.arbitration_id)
             encoder_data = parse_message(msg.timestamp, bytes(msg.data))
             self._encoder_latest_data[src_id].append(encoder_data)

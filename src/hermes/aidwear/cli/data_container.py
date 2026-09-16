@@ -9,13 +9,9 @@ from typing import Optional
 
 from hermes.base.data_container import DataContainer
 
- 
+
 class CliDataContainer(DataContainer):
-    def __init__(
-        self,
-        buf_len: Optional[int] = 1000,
-        **_
-    ) -> None:
+    def __init__(self, buf_len: Optional[int] = 1000, **_) -> None:
         super().__init__()
 
         self.add_channel(

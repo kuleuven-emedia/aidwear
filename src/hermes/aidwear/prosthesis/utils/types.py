@@ -12,9 +12,9 @@ from collections import deque
 from multiprocessing import Queue, Lock, Value
 from multiprocessing.synchronize import Event as _Event, Lock as _Lock
 from multiprocessing.sharedctypes import Synchronized
-from typing import Tuple
 
 from hermes.aidwear.prosthesis.utils.config_manager import ConfigManager
+from hermes.aidwear.prosthesis.motor_control.epos_commands import epos_handle
 from hermes.aidwear.utils.types import NiclaData
 
 
@@ -162,6 +162,7 @@ class HomingMethod(Enum):
     CURRENT_THRESHOLD_NEGATIVE_SPEED = -4
 
 
+# TODO: used (used to be for CubeMars)
 class ServoErrorCode(Enum):
     NO_ERR = 0  # No Error
     OVER_TEMP = 1  # Over temperature fault
@@ -172,6 +173,7 @@ class ServoErrorCode(Enum):
     PHASE_IMBALANCE_ERR = 6  # Phase current unbalanced fault (The hardware may be damaged)
 
 
+# TODO: update (used to be for CubeMars)
 class ServoCanPacketEnum(Enum):
     DUTY_CYCLE_MODE = 0  # Motor is driven by a square wave voltage of specified duty cycle
     CURRENT_LOOP_MODE = 1  # Motor operates in torque loop mode
@@ -332,6 +334,7 @@ class NextIsPauseSynchronized:
 
 @dataclass
 class ModeContext:
+    handle: epos_handle
     K: dict[str, ServoImpedanceGains]
     nicla_latest_data: dict[str, deque[NiclaData]]
     encoder_latest_data: dict[MotorId, deque[EncoderData]]
@@ -345,9 +348,6 @@ class ModeContext:
     is_stop_new_data_event: _Event
     is_keep_data_event: _Event
     config_manager: ConfigManager
-
-    token: int  # arbitrary data passed from one state machine to another [0-4]
-    factor_prev: Tuple[float, float]
 
 
 @dataclass
@@ -427,21 +427,22 @@ class StairAscentParameters2:
     movement_gyr_threshold: float
     movement_sum_threshold: float
 
+
 @dataclass
 class StairAscentParameters:
-    #transitions trheshold
+    # transitions threshold
     stance_to_push_off_th_gyr: float
     stance_to_push_off_th_roll: float
-    push_off_to_swing_th_gyr: float             
-    push_off_to_swing_th_roll: float           
-    push_off_to_swing_pr_roll: float           
-    swing_to_step_up_th_gyr: float            
-    swing_to_step_up_th_roll: float            
-    swing_to_step_up_inactivity_dur: float    
-    step_up_to_stance_th_gyr_range: float     
-    step_up_to_stance_th_roll: float           
+    push_off_to_swing_th_gyr: float
+    push_off_to_swing_th_roll: float
+    push_off_to_swing_pr_roll: float
+    swing_to_step_up_th_gyr: float
+    swing_to_step_up_th_roll: float
+    swing_to_step_up_inactivity_dur: float
+    step_up_to_stance_th_gyr_range: float
+    step_up_to_stance_th_roll: float
     # for the torque rising
-    risetime: float                           
+    risetime: float
 
 
 @dataclass
@@ -520,9 +521,10 @@ class WalkingParameters2:
     inactivity_angle_threshold: float
     ramp_time: float
 
+
 @dataclass
 class WalkingParameters:
-    #transition trhesholds
+    # transition thresholds
     idle_to_one_step_th_gyr: float
     to_idle_inactivity_dur: float
     one_step_to_stance_th_gyr: float
@@ -542,8 +544,8 @@ class WalkingParameters:
 
 @dataclass
 class HurdlesParameters:
-    stance_to_swing_th_roll_pr: float           
-    stance_to_swing_th_gyr_pr: float           
+    stance_to_swing_th_roll_pr: float
+    stance_to_swing_th_gyr_pr: float
     swing_to_stance_th_roll_pr: float
 
 

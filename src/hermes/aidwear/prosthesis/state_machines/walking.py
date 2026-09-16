@@ -42,26 +42,26 @@ class Walking(StateMachine, ProsthesisStateMachine):
     swing = State(
         value=StateEnum.Walking.SWING.value,
     )
-#    swing_ext = State(
-#        value=StateEnum.Walking.SWING_EXT.value,
-#    )
+    #    swing_ext = State(
+    #        value=StateEnum.Walking.SWING_EXT.value,
+    #    )
 
     # Transitions.
     cycle = (
-        idle.to(idle, unless="idle_to_one_step")
-        | idle.to(one_step, cond="idle_to_one_step")                                # T1
-        | one_step.to(idle, cond="one_step_to_idle")                                # T2
-        | one_step.to(one_step, unless="one_step_to_stance or one_step_to_idle")
-        | one_step.to(stance, cond="one_step_to_stance")                            # T3
-        | stance.to(idle, cond="stance_to_idle")                                    # T2
-        | stance.to(swing, cond="stance_to_swing")                                  # T4
-        | stance.to(stance, unless="stance_to_swing or stance_to_idle")
-        | swing.to(swing, unless="swing_to_stance")
-        | swing.to(stance, cond="swing_to_stance")                                  # T5
-        #| swing.to(swing, unless="swing_to_swing_ext")
-        #| swing.to(swing_ext, cond="swing_to_swing_ext")
-        #| swing_ext.to(swing_ext, unless="swing_ext_to_stance")        
-        #| swing_ext.to(stance, cond="swing_ext_to_stance")                                                                  # T5
+        idle.to(idle, unless="is_idle_to_one_step")
+        | idle.to(one_step, cond="is_idle_to_one_step")  # T1
+        | one_step.to(idle, cond="is_one_step_to_idle")  # T2
+        | one_step.to(one_step, unless="is_one_step_to_stance or is_one_step_to_idle")
+        | one_step.to(stance, cond="is_one_step_to_stance")  # T3
+        | stance.to(idle, cond="is_stance_to_idle")  # T2
+        | stance.to(swing, cond="is_stance_to_swing")  # T4
+        | stance.to(stance, unless="is_stance_to_swing or is_stance_to_idle")
+        | swing.to(swing, unless="is_swing_to_stance")
+        | swing.to(stance, cond="is_swing_to_stance")  # T5
+        # | swing.to(swing, unless="swing_to_swing_ext")
+        # | swing.to(swing_ext, cond="swing_to_swing_ext")
+        # | swing_ext.to(swing_ext, unless="swing_ext_to_stance")
+        # | swing_ext.to(stance, cond="swing_ext_to_stance")                                                                  # T5
     )
 
     def __init__(self, ctx: ModeContext):
@@ -91,19 +91,18 @@ class Walking(StateMachine, ProsthesisStateMachine):
         # Personalized parameters.
         self._param = WalkingParameters(
             # --------------------------- Idle -> One Step (T1) ---------------------------
-            idle_to_one_step_th_gyr=-600,                   
+            idle_to_one_step_th_gyr=-600,
             # --------------------------- One Step / Stance -> Idle (T2) ---------------------------
-            to_idle_inactivity_dur=1.0,                     
+            to_idle_inactivity_dur=1.0,
             # --------------------------- One Step -> Stance (T3) ---------------------------
-            one_step_to_stance_th_gyr=-40,                  
+            one_step_to_stance_th_gyr=-40,
             # --------------------------- Stance -> Swing (T4) ---------------------------
-            stance_to_swing_th_gyr=600,                     
-            stance_to_swing_phase_threshold=47,             
+            stance_to_swing_th_gyr=600,
+            stance_to_swing_phase_threshold=47,
             # --------------------------- Swing -> Stance (T5) ---------------------------
-            swing_to_stance_th_gyr=600,                     
-            swing_to_stance_phase_threshold=70,             
-            swing_to_stance_bending_dur=0.5,                
-
+            swing_to_stance_th_gyr=600,
+            swing_to_stance_phase_threshold=70,
+            swing_to_stance_bending_dur=0.5,
             inactivity_gyr_threshold=250,
             inactivity_idle_transition_time=2,
             inactivity_time_step=0.01,
@@ -133,49 +132,50 @@ class Walking(StateMachine, ProsthesisStateMachine):
         )
 
     # T1: Idle -> One Step
-    def idle_to_one_step(self):
+    def is_idle_to_one_step(self):
         return self._thigh_intact_gyr < self._param.idle_to_one_step_th_gyr
 
     # T2: One Step -> Idle
-    def one_step_to_idle(self):
+    def is_one_step_to_idle(self):
         return self._inactivity_dur > self._param.to_idle_inactivity_dur
 
     # T3: One Step -> Stance
-    def one_step_to_stance(self):
+    def is_one_step_to_stance(self):
         return self._thigh_pr_gyr < self._param.one_step_to_stance_th_gyr
 
     # T2: Stance -> Idle
-    def stance_to_idle(self):
+    def is_stance_to_idle(self):
         return self._inactivity_dur > self._param.to_idle_inactivity_dur
 
     # T4: Stance -> Swing
-    def stance_to_swing(self):
+    def is_stance_to_swing(self):
         return (
             self._thigh_pr_gyr > self._param.stance_to_swing_th_gyr
             and self._phase > self._param.stance_to_swing_phase_threshold
         )
 
     # T5: Swing -> Stance
-    def swing_to_stance(self):
+    def is_swing_to_stance(self):
         return (
-            (
-                self._thigh_pr_gyr > self._param.swing_to_stance_th_gyr
-                and self._phase > self._param.swing_to_stance_phase_threshold
-            )
-            or self._bending_dur > self._param.swing_to_stance_bending_dur
-        )
-    
+            self._thigh_pr_gyr > self._param.swing_to_stance_th_gyr
+            and self._phase > self._param.swing_to_stance_phase_threshold
+        ) or self._bending_dur > self._param.swing_to_stance_bending_dur
+
     # Actions.    ########## for the moment i'm Using a random value for the servo
     def on_enter_idle(self):
+        # TODO: add motor control logic for idle.
         pass
 
     def on_enter_one_step(self):
+        # TODO: add motor control logic for one step.
         pass
 
     def on_enter_stance(self):
+        # TODO: add motor control logic for stance.
         pass
 
     def on_enter_swing(self):
+        # TODO: add motor control logic for swing.
         pass
 
     def _kalman_phase_update(self, phase_raw):
@@ -339,23 +339,4 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self.send("cycle")
 
     def is_safe_to_switch(self) -> bool:
-        return self._is_safe
-
-
-    def send_data(self) -> dict:
-        shift = self._param.traj_shift
-        data = {
-            "Lth_roll": self._thigh_left_angle,
-            "Rth_roll": self._thigh_right_angle,
-            "Lkn_roll": self._knee_left_roll,
-            "Rkn_roll": self._knee_right_roll,
-            "Rth_gyr": self._thigh_right_gyr,
-            "phase": self._phase,
-#            "Lth_traj": float(
-#                -self._trajectory[0][(min(int(self._phase), 99) + shift[0]) % 100]
-#            ),
-#            "Rth_traj": float(
-#                -self._trajectory[1][(min(int(self._phase), 99) + shift[1]) % 100]
-#            ),
-        }
-        return data
+        return True

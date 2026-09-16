@@ -21,9 +21,11 @@ class CanEmulator:
         is_stop_new_data_event: _Event,
         sampling_rate_hz: int = 1,
     ):
-        raise(NotImplementedError)
+        raise (NotImplementedError)
 
-        self._motor_ids = list(map(lambda m: m["can_id"]+10496, motor_mapping.values()))
+        self._motor_ids = list(
+            map(lambda m: m["can_id"] + 10496, motor_mapping.values())
+        )
         self._is_stop_new_data_event = is_stop_new_data_event
         self._sample_period = 1 / sampling_rate_hz
         self._bus = can.interface.Bus(channel="localhost:18881", interface="virtualcan")

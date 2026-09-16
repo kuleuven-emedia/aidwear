@@ -27,10 +27,7 @@ from ..utils.types import (
 
 class StairDescent(StateMachine, ProsthesisStateMachine):
     # States.
-    idle = State(
-        value=StateEnum.Idle.IDLE.value,
-        initial=True
-    )
+    idle = State(value=StateEnum.Idle.IDLE.value, initial=True)
 
     # Transitions.
     cycle = idle.to(idle)
@@ -42,15 +39,17 @@ class StairDescent(StateMachine, ProsthesisStateMachine):
 
     # Post-transition synchronous callback.
     def after_transition(self, event: Event, state: State):
-        pass
+        # TODO: record to the state transition queue that sub state changed
         # print(f"Completed transition to {state.name}", flush=True)
+        pass
 
     # Actions.
     def on_enter_idle(self):
-        # for the ankle and the knee we a position reference of 0, 
+        # for the ankle and the knee we a position reference of 0,
         # fully extended for the knee and neutral for the ankle.
+        # TODO: add motor control logic for idle.
         pass
-        
+
     def update_sensor_values(
         self,
         torso_angle: float = np.nan,
@@ -69,38 +68,9 @@ class StairDescent(StateMachine, ProsthesisStateMachine):
         self._knee_left_roll = knee_left_roll
         self._knee_right_roll = knee_right_roll
         self._thigh_right_gyr = thigh_right_gyr
-        
+
     def step(self) -> None:
         self.send("cycle")
-        
+
     def is_safe_to_switch(self) -> bool:
         return True
-
-    def send_data(self) -> dict:
-        data = {
-            "Lth_roll": self._thigh_left_angle,
-            "Rth_roll": self._thigh_right_angle,
-            "Lkn_roll": self._knee_left_roll,
-            "Rkn_roll": self._knee_right_roll,
-            "Rth_gyr": self._thigh_right_gyr,
-            "phase": 0,
-            "Pkn_traj": float(0),
-            "Pan_traj": float(0),
-        }
-        return data 
-    
-#    def send_data(self) -> dict:
-        data = {
-            "Lth_gyr": self._thigh_leading_leg_gyr,
-            "Lth_roll": self._thigh_leading_leg_roll,
-            "torso_roll": self._knee_leading_leg_roll,
-            "phase": self._knee_lagging_leg_roll,
-            "state": str(self.current_state),
-        }
-        return data
-    
-#    def step(self) -> None:
-        if self.current_state == self.double_support:
-            self.send("start_descent")
-        else:
-            self.send("continue_descent")

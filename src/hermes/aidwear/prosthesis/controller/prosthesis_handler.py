@@ -23,6 +23,10 @@ from hermes.utils.mp_utils import launch_handler
 
 from .mode_selection import ModeSelectionMachine
 from ..motor_control import epos_facade
+from ..motor_control.epos_commands import (
+    wait_target_reached,
+    set_quick_stop_state,
+)
 from ..motor_control.types import (
     EposDeviceConfig,
     HomingConfig,
@@ -164,12 +168,6 @@ class ProsthesisHandler:
         self._motor_name_mapping = ProsthesisMotorMapping(
             **dict(zip(motor_mapping.keys(), motor_mapping.keys()))
         )  # validates input mapping.
-        motor_type_mapping: dict[int, ServoMotorEnum] = dict(
-            [
-                (MotorId(motor_spec["can_id"]), ServoMotorEnum[motor_spec["type"]])
-                for motor_spec in motor_mapping.values()
-            ]
-        )
 
         self._motor_latest_data: dict[MotorId, deque[ServoMotorData]] = {
             MotorId(motor_spec["can_id"]): deque([None], maxlen=1)
@@ -181,7 +179,9 @@ class ProsthesisHandler:
             for motor_spec in motor_mapping.values()
         }
         self._encoder_offsets: dict[EncoderId, AbsoluteEncoderOffset] = {
-            EncoderId[MotorId(motor_spec["can_id"]).name]: AbsoluteEncoderOffset(motor_spec["absolute_encoder_reference"], 0.0)
+            EncoderId[MotorId(motor_spec["can_id"]).name]: AbsoluteEncoderOffset(
+                motor_spec["absolute_encoder_reference"], 0.0
+            )
             for motor_spec in motor_mapping.values()
         }
         self._encoder_offsets_lock = asyncio.Lock()
@@ -204,7 +204,9 @@ class ProsthesisHandler:
         #     self._can_emulator_proc.start()
         # else:
         config_can_linux(channel="can0")
-        self._can_bus = can.interface.Bus(channel="can0", interface="socketcan", fd=True)
+        self._can_bus = can.interface.Bus(
+            channel="can0", interface="socketcan", fd=True
+        )
 
         # CAN bus multithreaded async listener.
         self._can_listener = CanBackend(
@@ -247,6 +249,7 @@ class ProsthesisHandler:
 
         # High-level locomotion mode selection FSM.
         ctx = ModeContext(
+            handle=self._epos_handle,
             K=K,
             nicla_latest_data=self._nicla_latest_data,
             encoder_latest_data=self._encoder_latest_data,
@@ -259,8 +262,6 @@ class ProsthesisHandler:
             motor_command_queue=motor_command_queue,
             is_stop_new_data_event=is_stop_new_data_event,
             is_keep_data_event=is_keep_data_event,
-            token=self._token,
-            factor_prev=self._factor_prev,
             config_manager=self._fsm_config_manager,
         )
         self._mode_fsm = ModeSelectionMachine(ctx, is_immediate_mode_switch)
@@ -282,7 +283,9 @@ class ProsthesisHandler:
             return False
 
     async def _wait_for_homing_completion(
-        self, timeout_s: float = 60.0, poll_interval_s: float = 0.05,
+        self,
+        timeout_s: float = 60.0,
+        poll_interval_s: float = 0.05,
     ) -> bool:
         """Awaits homing completion for all active motors before proceeding."""
         print("Awaiting completion of motor homing routine...", flush=True)
@@ -318,7 +321,9 @@ class ProsthesisHandler:
 
                         encoder_id = EncoderId[motor_id.name]
                         async with self._encoder_offsets_lock:
-                            while (latest_enc := self._encoder_latest_data[encoder_id][-1]) is None:
+                            while (
+                                latest_enc := self._encoder_latest_data[encoder_id][-1]
+                            ) is None:
                                 await asyncio.sleep(0.01)
                             self._encoder_offsets[encoder_id].offset = latest_enc.angle
                             print(
@@ -335,9 +340,14 @@ class ProsthesisHandler:
             if pending_motors:
                 await asyncio.sleep(poll_interval_s)
 
-        print("Motor homing procedure successfully completed for all active motors.", flush=True)
+        print(
+            "Motor homing procedure successfully completed for all active motors.",
+            flush=True,
+        )
         async with self._encoder_offsets_lock:
-            encoder_offsets = {k.name: v.offset for k, v in self._encoder_offsets.items()}
+            encoder_offsets = {
+                k.name: v.offset for k, v in self._encoder_offsets.items()
+            }
         self._calibration_event_queue.put(
             CalibrationEvent(
                 timestamp=get_time(),
@@ -414,7 +424,10 @@ class ProsthesisHandler:
                 res = await calibrate_fn()
                 success = True if res is None else bool(res)
                 if not success:
-                    print("Calibration procedure was not attained. Press 'Y' to retry.", flush=True)
+                    print(
+                        "Calibration procedure was not attained. Press 'Y' to retry.",
+                        flush=True,
+                    )
                 return success
         except Empty:
             pass
@@ -449,7 +462,9 @@ class ProsthesisHandler:
                     for field in fields(self._nicla_name_mapping)
                 ].extend(
                     [
-                        not self._encoder_latest_data[EncoderId[MotorId(motor_name).name]]
+                        not self._encoder_latest_data[
+                            EncoderId[MotorId(motor_name).name]
+                        ]
                         for motor_name in self._motor_name_mapping
                     ]
                 )
@@ -466,23 +481,29 @@ class ProsthesisHandler:
                     )
                     nicla_gyro_samples[device_name] = device_data[-1].gyroscope[0]
 
-            async with self._nicla_offsets_lock:
+            async with self._encoder_offsets_lock:
                 for encoder_id, encoder_data in self._encoder_latest_data.items():
                     encoder_samples[encoder_id] = (
-                        self._encoder_offsets[encoder_id].reference + encoder_data[-1].angle - self._encoder_offsets[encoder_id].offset
+                        self._encoder_offsets[encoder_id].reference
+                        + encoder_data[-1].angle
+                        - self._encoder_offsets[encoder_id].offset
                     )
 
             torso_angle = nicla_euler_samples[self._nicla_name_mapping.torso]
             thigh_left_angle = nicla_euler_samples[self._nicla_name_mapping.thigh_left]
-            thigh_right_angle = nicla_euler_samples[self._nicla_name_mapping.thigh_right]
+            thigh_right_angle = nicla_euler_samples[
+                self._nicla_name_mapping.thigh_right
+            ]
 
             thigh_left_roll = torso_angle - thigh_left_angle
             thigh_right_roll = torso_angle - thigh_right_angle
             knee_left_roll = (
-                nicla_euler_samples[self._nicla_name_mapping.shank_left] - thigh_left_angle
+                nicla_euler_samples[self._nicla_name_mapping.shank_left]
+                - thigh_left_angle
             )
             knee_right_roll = (
-                nicla_euler_samples[self._nicla_name_mapping.shank_right] - thigh_right_angle
+                nicla_euler_samples[self._nicla_name_mapping.shank_right]
+                - thigh_right_angle
             )
             thigh_left_gyr = (
                 nicla_gyro_samples[self._nicla_name_mapping.thigh_left]
@@ -509,7 +530,13 @@ class ProsthesisHandler:
                 next_is_pause = self._next_is_pause.next_value.value
 
             if next_is_pause:
-                # TODO: stop any in-progress motor movements. Maybe stiff leg in `IDLE`?
+                # Stop any in-progress motor movements. Maybe stiff leg in `IDLE`?
+                set_quick_stop_state(self._epos_handle, MotorId.KNEE)
+                set_quick_stop_state(self._epos_handle, MotorId.ANKLE)
+                # TODO: validate that quickstop actually triggers this.
+                wait_target_reached(self._epos_handle, MotorId.KNEE, 1000)
+                wait_target_reached(self._epos_handle, MotorId.ANKLE, 1000)
+
                 if self._mode_fsm.current_state.value != ModeEnum.IDLE.value.id:
                     self._mode_fsm.to_idle()
             # Check if the handler received an update of state from the parent Pipeline mode with the new AI prediction.
@@ -521,24 +548,25 @@ class ProsthesisHandler:
                     next_mode_sequence_id = self._next_mode.sequence_id.value
                     next_mode_source = self._next_mode.source.value
 
-                if next_mode != self._mode_fsm.current_state.value:
-                    # Store next mode's sequence ID to guarantee it doesn't change while switching states.
-                    self._mode_fsm._sequence_id = next_mode_sequence_id
-                    self._mode_fsm._source = next_mode_source
+                # TODO: uncomment after debugging.
+                # if next_mode != self._mode_fsm.current_state.value:
+                #     # Store next mode's sequence ID to guarantee it doesn't change while switching states.
+                #     self._mode_fsm._sequence_id = next_mode_sequence_id
+                #     self._mode_fsm._source = next_mode_source
 
-                    # Triggers potential transition to the next locomotion mode.
-                    if next_mode == ModeEnum.WALKING.value.id:
-                        self._mode_fsm.to_walking()
-                    elif next_mode == ModeEnum.SIT_TO_STAND.value.id:
-                        self._mode_fsm.to_sit_to_stand()
-                    elif next_mode == ModeEnum.STAIR_ASCENT.value.id:
-                        self._mode_fsm.to_stair_ascent()
-                    elif next_mode == ModeEnum.STAIR_DESCENT.value.id:
-                        self._mode_fsm.to_stair_descent()
-                    elif next_mode == ModeEnum.IDLE.value.id:
-                        self._mode_fsm.to_idle()
-                    elif next_mode == ModeEnum.HURDLE.value.id:
-                        self._mode_fsm.to_hurdle()
+                #     # Triggers potential transition to the next locomotion mode.
+                #     if next_mode == ModeEnum.WALKING.value.id:
+                #         self._mode_fsm.to_walking()
+                #     elif next_mode == ModeEnum.SIT_TO_STAND.value.id:
+                #         self._mode_fsm.to_sit_to_stand()
+                #     elif next_mode == ModeEnum.STAIR_ASCENT.value.id:
+                #         self._mode_fsm.to_stair_ascent()
+                #     elif next_mode == ModeEnum.STAIR_DESCENT.value.id:
+                #         self._mode_fsm.to_stair_descent()
+                #     elif next_mode == ModeEnum.IDLE.value.id:
+                #         self._mode_fsm.to_idle()
+                #     elif next_mode == ModeEnum.HURDLE.value.id:
+                #         self._mode_fsm.to_hurdle()
 
             self._mode_fsm.update_sensor_values(
                 torso_angle=torso_angle,
@@ -557,7 +585,7 @@ class ProsthesisHandler:
                 dt=self._dt,
             )
 
-            #self._mode_fsm.step()       ###################################################################
+            self._mode_fsm.step()
 
             end_time_s = get_time()
             if (sleep_s := next_period_s - end_time_s) > 0:
@@ -573,9 +601,9 @@ class ProsthesisHandler:
 
         # Transition back to `IDLE`.
         if self._mode_fsm.current_state.value != ModeEnum.IDLE.value.id:
-            # TODO: stop any in-progress motor movements. Maybe stiff leg in `IDLE`?
+            # Stop any in-progress motor movements.
             self._mode_fsm.to_idle()
-            # self._mode_fsm.step()
+            self._mode_fsm.step()
 
         # Finalize and print exo statistics.
         if (res := finalize_running_stats(count, mean, mean2)) is not None:
@@ -588,12 +616,13 @@ class ProsthesisHandler:
         """Continuously captures motor telemetry (position, velocity, current) at the desired sampling rate."""
         next_period_s = get_time()
         while not self._is_exo_cleanup_event.is_set():
-            start_time_s = get_time()
             next_period_s += self._motor_dt
 
             for motor_id in self._active_motors:
                 try:
-                    motor_sample = epos_facade.get_motor_data(self._epos_handle, motor_id)
+                    motor_sample = epos_facade.get_motor_data(
+                        self._epos_handle, motor_id
+                    )
                     self._motor_latest_data[motor_id].append(motor_sample)
 
                     if (
@@ -619,7 +648,9 @@ class ProsthesisHandler:
             try:
                 epos_facade.disable(self._epos_handle, motor_id)
             except Exception as e:
-                print(f"Warning: Failed to disable motor {motor_id.name}: {e}", flush=True)
+                print(
+                    f"Warning: Failed to disable motor {motor_id.name}: {e}", flush=True
+                )
         epos_facade.shutdown(self._epos_handle, self._active_motors)
 
         self._can_notifier.stop()
@@ -662,7 +693,7 @@ class ProsthesisHandler:
         # NOTE: Loops until upstream HERMES node triggers closure via `_is_cleanup_event` event.
         # TODO: Add a coroutine with `watchdog` of the motors gains file.
         await asyncio.gather(
-            #self._run_state_machine(), ###################################################################
+            self._run_state_machine(),
             self._poll_motor_data(),
             self._watch_for_offset_recalibration(),
             self._nicla_backend.run(),

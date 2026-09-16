@@ -9,8 +9,6 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 
-
-
 class ConfigManager:
     def __init__(self, config_path: Optional[str], output_dir: str):
         self.output_dir = Path(output_dir).resolve()

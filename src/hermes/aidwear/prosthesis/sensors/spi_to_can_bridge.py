@@ -6,8 +6,6 @@ Version: 1.0
 Description: CAN parsing primitives for the VUB's AS5048A SPI-to-CAN bridge messages.
 """
 
-import struct
-
 from ..utils.types import EncoderData
 
 
@@ -23,10 +21,12 @@ def parse_message(timestamp: float, data: bytes) -> EncoderData:
     """
     angle_raw = (data[0] << 8) | data[1]
 
-    error = (angle_raw >> 14) & 0x01 # verification error flag (bit 14)
+    error = (angle_raw >> 14) & 0x01  # verification error flag (bit 14)
 
     angle_data = angle_raw & 0x3FFF  # 14 data bits
-    angle_deg = angle_data * (360.0 / 16384.0) # Resolution of the 14 bit => 2^14 = 16384
+    angle_deg = angle_data * (
+        360.0 / 16384.0
+    )  # Resolution of the 14 bit => 2^14 = 16384
 
     return EncoderData(
         timestamp=timestamp,

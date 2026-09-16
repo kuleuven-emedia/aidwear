@@ -24,7 +24,9 @@ def print_item(name, obj):
     """
     indent = "  " * name.count("/")
     if isinstance(obj, h5py.Group):
-        print(f"{indent}📂 Group: {os.path.basename(name)} (contains {len(obj)} members)")
+        print(
+            f"{indent}📂 Group: {os.path.basename(name)} (contains {len(obj)} members)"
+        )
     elif isinstance(obj, h5py.Dataset):
         print(f"{indent}📄 Dataset: {os.path.basename(name)}")
         print(f"{indent}  - Shape: {obj.shape}")
@@ -41,5 +43,5 @@ def print_item(name, obj):
 
 
 if __name__ == "__main__":
-    file_path = 'data/exo.hdf5'
+    file_path = "data/exo.hdf5"
     print_hdf5_structure(file_path)

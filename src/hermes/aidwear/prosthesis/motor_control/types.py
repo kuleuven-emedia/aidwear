@@ -1,10 +1,11 @@
+from ctypes import Union
 from dataclasses import dataclass
 
 from hermes.aidwear.prosthesis.utils.types import (
     HomingMethod,
     MotorId,
     EposDevice,
-    EposProtocolStack
+    EposProtocolStack,
 )
 
 
@@ -38,7 +39,7 @@ class EposDeviceConfig:
 class HomingConfig:
     """
     Configuration parameters for current-threshold homing calibration.
-    
+
     Args:
         homing_method (HomingMethod): Method used for homing mode; ankle plantar flexion (-4), knee extension (...). Defaults to `CURRENT_THRESHOLD_NEGATIVE_SPEED`.
         acceleration (int): Homing acceleration in rpm/s (0x609A). Defaults to `1_000`.
@@ -48,6 +49,7 @@ class HomingConfig:
         home_offset_enc_ticks (int): Distance in encoder counts from hardstop (0x607C). Defaults to `-100_000`.
         home_position_coordinate (int): Coordinate assigned to home position (0x30B0). Defaults to `0`.
     """
+
     homing_method: Union[HomingMethod, str]
     acceleration: int
     speed_switch: int
