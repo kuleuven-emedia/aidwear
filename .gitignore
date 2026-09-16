@@ -15,6 +15,7 @@ __pycache__
 data/
 trial_auto_id.txt
 *.csv
+*.svg
 
 # Site data
 site/

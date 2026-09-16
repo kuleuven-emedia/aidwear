@@ -13,11 +13,7 @@ from hermes.utils.time_utils import get_time
 from .base import ProsthesisStateMachine
 from ..utils.types import (
     ModeContext,
-    ModeEnum,
     PhaseEstimate,
-    ServoImpedanceGains,
-    ServoMotorEnum,
-    ServoReference,
     HurdlesParameters,
     StateEnum,
     StateTransition,

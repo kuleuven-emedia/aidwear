@@ -13,9 +13,9 @@ from multiprocessing import Queue, Lock, Value
 from multiprocessing.synchronize import Event as _Event, Lock as _Lock
 from multiprocessing.sharedctypes import Synchronized
 from typing import Tuple
-import can
 
 from hermes.aidwear.prosthesis.utils.config_manager import ConfigManager
+from hermes.aidwear.utils.types import NiclaData
 
 
 class MotorId(Enum):
@@ -203,32 +203,32 @@ class ServoMotorData:
 
 class StateEnum:
     class Idle(Enum):
-        IDLE = 0
+        IDLE = 0x0
 
     class Walking(Enum):
-        IDLE = 1
-        ONE_STEP = 2
-        STANCE = 3
-        SWING = 4
+        IDLE = 0x10
+        ONE_STEP = 0x11
+        STANCE = 0x12
+        SWING = 0x13
 
     class SitToStand(Enum):
-        STANCE = 3
-        LOWERING = 4
-        SITTING = 5
-        RISING = 6
+        STANCE = 0x20
+        LOWERING = 0x21
+        SITTING = 0x22
+        RISING = 0x23
 
     class StairAscent(Enum):
-        STANCE = 7
-        PUSH_OFF = 8
-        SWING = 9
-        STEP_UP = 10
+        STANCE = 0x30
+        PUSH_OFF = 0x31
+        SWING = 0x32
+        STEP_UP = 0x33
 
     class StairDescent(Enum):
-        IDLE = 11
+        IDLE = 0x40
 
     class Hurdle(Enum):
-        STANCE = 12
-        SWING = 13
+        STANCE = 0x50
+        SWING = 0x51
 
 
 class IntentCommandSource(Enum):
@@ -333,7 +333,7 @@ class NextIsPauseSynchronized:
 @dataclass
 class ModeContext:
     K: dict[str, ServoImpedanceGains]
-    nicla_latest_data: dict[MotorId, deque[NiclaData]]
+    nicla_latest_data: dict[str, deque[NiclaData]]
     encoder_latest_data: dict[MotorId, deque[EncoderData]]
     motor_latest_data: dict[MotorId, deque[ServoMotorData]]
     next_mode: NextModeSynchronized
