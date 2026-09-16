@@ -54,9 +54,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self._knee_thigh_gain = 1.3
 
         self._K = ctx.K
-        self._bus = ctx.bus
         self._motor_latest_data = ctx.motor_latest_data
-        self._fatigue = ctx.fatigue
         self._state_changed_queue = ctx.state_changed_queue
         self._phase_estimate_queue = ctx.phase_estimate_queue
         self._motor_command_queue = ctx.motor_command_queue

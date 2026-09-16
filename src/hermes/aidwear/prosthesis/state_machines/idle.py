@@ -25,13 +25,13 @@ class Idle(StateMachine, ProsthesisStateMachine):
     def __init__(self, ctx: ModeContext):
         self._ctx = ctx
 
-        activate_position_mode(self._ctx, MotorId.ANKLE)
-        activate_position_mode(self._ctx, MotorId.KNEE)
+        activate_position_mode(self._ctx.handle, MotorId.ANKLE)
+        activate_position_mode(self._ctx.handle, MotorId.KNEE)
 
         # TODO: replace later with live auto-loaded configs from the YAML file via the ConfigManager.
         # NOTE: this will allow live changes like in LabView (must move the position command to the `on_enter_idle` then).
-        pm_set_position_must(self._ctx, MotorId.ANKLE, 0)
-        pm_set_position_must(self._ctx, MotorId.KNEE, 0)
+        pm_set_position_must(self._ctx.handle, MotorId.ANKLE, 0)
+        pm_set_position_must(self._ctx.handle, MotorId.KNEE, 0)
 
         super(Idle, self).__init__()
 

@@ -6,16 +6,23 @@ Version: 1.0
 Description: AidWear-specific data types.
 """
 
+from __future__ import annotations
+
+import ctypes
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import deque
 from multiprocessing import Queue, Lock, Value
 from multiprocessing.synchronize import Event as _Event, Lock as _Lock
 from multiprocessing.sharedctypes import Synchronized
+from typing import TypeAlias, TYPE_CHECKING
 
-from hermes.aidwear.prosthesis.utils.config_manager import ConfigManager
-from hermes.aidwear.prosthesis.motor_control.epos_commands import epos_handle
+if TYPE_CHECKING:
+    from hermes.aidwear.prosthesis.utils.config_manager import ConfigManager
+
 from hermes.aidwear.utils.types import NiclaData
+
+epos_handle: TypeAlias = ctypes.c_void_p
 
 
 class MotorId(Enum):

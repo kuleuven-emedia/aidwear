@@ -94,6 +94,8 @@ class ModeSelectionMachine(StateMachine):
     def __init__(self, ctx: ModeContext, is_immediate_mode_switch: bool = False):
         self._ctx = ctx
         self._is_immediate_mode_switch = is_immediate_mode_switch
+        self._sequence_id = None
+        self._source = None
         super(ModeSelectionMachine, self).__init__()
 
     # Post-transition synchronous callback.

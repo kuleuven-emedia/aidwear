@@ -159,30 +159,30 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
 
     # Actions.
     def on_enter_stance(self):
-        with self._ctx.next_fatigue.lock():
+        with self._ctx.next_fatigue.lock:
             next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
+        with self._ctx.next_mode.lock:
             next_mode = self._ctx.next_mode.next_value.value
         # TODO: add motor control logic for stance.
 
     def on_enter_lowering(self):
-        with self._ctx.next_fatigue.lock():
+        with self._ctx.next_fatigue.lock:
             next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
+        with self._ctx.next_mode.lock:
             next_mode = self._ctx.next_mode.next_value.value
         # TODO: add motor control logic for lowering.
 
     def on_enter_sitting(self):
-        with self._ctx.next_fatigue.lock():
+        with self._ctx.next_fatigue.lock:
             next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
+        with self._ctx.next_mode.lock:
             next_mode = self._ctx.next_mode.next_value.value
         # TODO: add motor control logic for sitting.
 
     def on_enter_rising(self):
-        with self._ctx.next_fatigue.lock():
+        with self._ctx.next_fatigue.lock:
             next_fatigue = self._ctx.next_fatigue.next_value.value
-        with self._ctx.next_mode.lock():
+        with self._ctx.next_mode.lock:
             next_mode = self._ctx.next_mode.next_value.value
         # TODO: add motor control logic for rising.
 

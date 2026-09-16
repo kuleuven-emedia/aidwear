@@ -23,10 +23,6 @@ from hermes.utils.mp_utils import launch_handler
 
 from .mode_selection import ModeSelectionMachine
 from ..motor_control import epos_facade
-from ..motor_control.epos_commands import (
-    wait_target_reached,
-    set_quick_stop_state,
-)
 from ..motor_control.types import (
     EposDeviceConfig,
     HomingConfig,
@@ -456,18 +452,8 @@ class ProsthesisHandler:
             start_time_s = get_time()
             next_period_s += self._dt
 
-            if any(
-                [
-                    not self._nicla_latest_data[field.name]
-                    for field in fields(self._nicla_name_mapping)
-                ].extend(
-                    [
-                        not self._encoder_latest_data[
-                            EncoderId[MotorId(motor_name).name]
-                        ]
-                        for motor_name in self._motor_name_mapping
-                    ]
-                )
+            if any(len(dq) == 0 for dq in self._nicla_latest_data.values()) or any(
+                dq[-1] is None for dq in self._encoder_latest_data.values()
             ):
                 if (sleep_s := (next_period_s - start_time_s)) > 0:
                     await asyncio.sleep(sleep_s)
@@ -530,14 +516,13 @@ class ProsthesisHandler:
                 next_is_pause = self._next_is_pause.next_value.value
 
             if next_is_pause:
-                # Stop any in-progress motor movements. Maybe stiff leg in `IDLE`?
-                set_quick_stop_state(self._epos_handle, MotorId.KNEE)
-                set_quick_stop_state(self._epos_handle, MotorId.ANKLE)
-                # TODO: validate that quickstop actually triggers this.
-                wait_target_reached(self._epos_handle, MotorId.KNEE, 1000)
-                wait_target_reached(self._epos_handle, MotorId.ANKLE, 1000)
+                # Stop any in-progress motor movements.
+                for motor_id in self._active_motors:
+                    epos_facade.quick_stop(self._epos_handle, motor_id)
 
                 if self._mode_fsm.current_state.value != ModeEnum.IDLE.value.id:
+                    for motor_id in self._active_motors:
+                        epos_facade.enable(self._epos_handle, motor_id)
                     self._mode_fsm.to_idle()
             # Check if the handler received an update of state from the parent Pipeline mode with the new AI prediction.
             # The condition is evaluated on each loop iteration to recognize asynchronously received intent prediction.
@@ -549,24 +534,24 @@ class ProsthesisHandler:
                     next_mode_source = self._next_mode.source.value
 
                 # TODO: uncomment after debugging.
-                # if next_mode != self._mode_fsm.current_state.value:
-                #     # Store next mode's sequence ID to guarantee it doesn't change while switching states.
-                #     self._mode_fsm._sequence_id = next_mode_sequence_id
-                #     self._mode_fsm._source = next_mode_source
+                if next_mode != self._mode_fsm.current_state.value:
+                    # Store next mode's sequence ID to guarantee it doesn't change while switching states.
+                    self._mode_fsm._sequence_id = next_mode_sequence_id
+                    self._mode_fsm._source = next_mode_source
 
-                #     # Triggers potential transition to the next locomotion mode.
-                #     if next_mode == ModeEnum.WALKING.value.id:
-                #         self._mode_fsm.to_walking()
-                #     elif next_mode == ModeEnum.SIT_TO_STAND.value.id:
-                #         self._mode_fsm.to_sit_to_stand()
-                #     elif next_mode == ModeEnum.STAIR_ASCENT.value.id:
-                #         self._mode_fsm.to_stair_ascent()
-                #     elif next_mode == ModeEnum.STAIR_DESCENT.value.id:
-                #         self._mode_fsm.to_stair_descent()
-                #     elif next_mode == ModeEnum.IDLE.value.id:
-                #         self._mode_fsm.to_idle()
-                #     elif next_mode == ModeEnum.HURDLE.value.id:
-                #         self._mode_fsm.to_hurdle()
+                    # Triggers potential transition to the next locomotion mode.
+                    if next_mode == ModeEnum.WALKING.value.id:
+                        self._mode_fsm.to_walking()
+                    elif next_mode == ModeEnum.SIT_TO_STAND.value.id:
+                        self._mode_fsm.to_sit_to_stand()
+                    elif next_mode == ModeEnum.STAIR_ASCENT.value.id:
+                        self._mode_fsm.to_stair_ascent()
+                    elif next_mode == ModeEnum.STAIR_DESCENT.value.id:
+                        self._mode_fsm.to_stair_descent()
+                    elif next_mode == ModeEnum.IDLE.value.id:
+                        self._mode_fsm.to_idle()
+                    elif next_mode == ModeEnum.HURDLE.value.id:
+                        self._mode_fsm.to_hurdle()
 
             self._mode_fsm.update_sensor_values(
                 torso_angle=torso_angle,

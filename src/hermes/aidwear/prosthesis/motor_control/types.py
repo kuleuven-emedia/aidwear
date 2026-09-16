@@ -1,4 +1,4 @@
-from ctypes import Union
+from typing import Union
 from dataclasses import dataclass
 
 from hermes.aidwear.prosthesis.utils.types import (

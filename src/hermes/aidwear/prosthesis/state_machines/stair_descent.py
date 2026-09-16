@@ -33,7 +33,6 @@ class StairDescent(StateMachine, ProsthesisStateMachine):
     cycle = idle.to(idle)
 
     def __init__(self, ctx: ModeContext):
-        self._bus = ctx.bus
         self._motor_command_queue = ctx.motor_command_queue
         super(StairDescent, self).__init__()
 
