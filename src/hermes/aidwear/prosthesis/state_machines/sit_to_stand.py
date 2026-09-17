@@ -4,6 +4,7 @@ Description: AidWear-specific state machine for the hierarchical control
     of the sit-to-stand ambulation mode.
 """
 
+from hermes.aidwear.prosthesis.utils.types import NiclaSamples, ServoMotorData, EncoderData
 from dataclasses import asdict
 import numpy as np
 from statemachine import Event, State, StateMachine
@@ -51,13 +52,13 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
     )
 
     def __init__(self, ctx: ModeContext):
-        self._thigh_left_gyr = 0
-        self._thigh_left_roll = 0
-        self._knee_left_roll = 0
-        self._thigh_right_gyr = 0
-        self._thigh_right_roll = 0
-        self._knee_right_roll = 0
-        self._torso_roll = 0
+        # self._thigh_left_gyr = 0
+        # self._thigh_left_roll = 0
+        # self._knee_left_roll = 0
+        # self._thigh_right_gyr = 0
+        # self._thigh_right_roll = 0
+        # self._knee_right_roll = 0
+        # self._torso_roll = 0
         self._phase = 0
         self._idle_dur = 0.00000001
         self._active_dur = 0
@@ -188,26 +189,18 @@ class SitToStand(StateMachine, ProsthesisStateMachine):
 
     def update_sensor_values(
         self,
-        torso_angle: float = np.nan,
-        thigh_left_angle: float = np.nan,
-        thigh_right_angle: float = np.nan,
-        thigh_left_roll: float = np.nan,
-        thigh_right_roll: float = np.nan,
-        knee_left_roll: float = np.nan,
-        knee_right_roll: float = np.nan,
-        thigh_left_gyr: int = 0,
-        thigh_right_gyr: int = 0,
-        knee_left_gyr: int = 0,
-        knee_right_gyr: int = 0,
+        nicla_samples: NiclaSamples,
+        encoder_samples: dict[MotorId, EncoderData],
+        motor_samples: dict[MotorId, ServoMotorData],
         dt: float = 0.01,
     ):
-        self._thigh_left_gyr = thigh_left_gyr
-        self._thigh_left_roll = thigh_left_roll
-        self._knee_left_roll = knee_left_roll
-        self._thigh_right_gyr = thigh_right_gyr
-        self._thigh_right_roll = thigh_right_roll
-        self._knee_right_roll = knee_right_roll
-        self._torso_roll = torso_angle
+        # self._thigh_left_gyr = thigh_left_gyr
+        # self._thigh_left_roll = thigh_left_roll
+        # self._knee_left_roll = knee_left_roll
+        # self._thigh_right_gyr = thigh_right_gyr
+        # self._thigh_right_roll = thigh_right_roll
+        # self._knee_right_roll = knee_right_roll
+        # self._torso_roll = torso_angle
 
         # Phase now uses configurable start and end angles.
         start_angle = self._param.phase_start_angle

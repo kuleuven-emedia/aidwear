@@ -4,6 +4,7 @@ Description: AidWear-specific state machine for the hierarchical control
     of the sit-to-stand ambulation mode.
 """
 
+from hermes.aidwear.prosthesis.utils.types import NiclaSamples, ServoMotorData, EncoderData
 from dataclasses import asdict
 import numpy as np
 from statemachine import Event, State, StateMachine
@@ -54,7 +55,6 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self._knee_thigh_gain = 1.3
 
         self._K = ctx.K
-        self._motor_latest_data = ctx.motor_latest_data
         self._state_changed_queue = ctx.state_changed_queue
         self._phase_estimate_queue = ctx.phase_estimate_queue
         self._motor_command_queue = ctx.motor_command_queue
@@ -124,29 +124,25 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
 
     def update_sensor_values(
         self,
-        torso_angle: float = np.nan,
-        thigh_left_angle: float = np.nan,
-        thigh_right_angle: float = np.nan,
-        thigh_left_roll: float = np.nan,
-        thigh_right_roll: float = np.nan,
-        knee_left_roll: float = np.nan,
-        knee_right_roll: float = np.nan,
-        thigh_left_gyr: int = 0,
-        thigh_right_gyr: int = 0,
+        nicla_samples: NiclaSamples,
+        encoder_samples: dict[MotorId, EncoderData],
+        motor_samples: dict[MotorId, ServoMotorData],
         dt: float = 0.01,
     ):
-        self._thigh_left_gyr = thigh_left_gyr
-        self._thigh_left_roll = thigh_left_roll
-        self._knee_left_roll = knee_left_roll
-        self._thigh_right_gyr = thigh_right_gyr
-        self._thigh_right_roll = thigh_right_roll
-        self._knee_right_roll = knee_right_roll
-        self._torso_roll = torso_angle
+        # TODO: save the variables of interest to the self._*, to use in the next "step()".
 
-        # The right leg is currently treated as the prosthetic leg.
-        self._thigh_pr_gyr = thigh_right_gyr
-        self._thigh_pr_roll = thigh_right_roll
-        self._knee_pr_roll = knee_right_roll  #! This should be the encoder measurement of the prosthetic knee or the IMU measurement of the thigh.
+        # self._thigh_left_gyr = thigh_left_gyr
+        # self._thigh_left_roll = thigh_left_roll
+        # self._knee_left_roll = knee_left_roll
+        # self._thigh_right_gyr = thigh_right_gyr
+        # self._thigh_right_roll = thigh_right_roll
+        # self._knee_right_roll = knee_right_roll
+        # self._torso_roll = torso_angle
+
+        # # The right leg is currently treated as the prosthetic leg.
+        # self._thigh_pr_gyr = thigh_right_gyr
+        # self._thigh_pr_roll = thigh_right_roll
+        # self._knee_pr_roll = knee_right_roll  #! This should be the encoder measurement of the prosthetic knee or the IMU measurement of the thigh.
 
         if self.current_state == self.swing:
             self._update_motors_reference()

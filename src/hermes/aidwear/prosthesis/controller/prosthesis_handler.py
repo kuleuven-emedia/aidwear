@@ -58,6 +58,7 @@ from ..utils.types import (
     CalibrationEvent,
     CalibrationEventType,
     AbsoluteEncoderOffset,
+    NiclaSamples,
 )
 from ...utils.types import (
     NiclaMappingFull,
@@ -136,7 +137,7 @@ class ProsthesisHandler:
         # Datastructures for managing the incoming Nicla data.
         self._nicla_latest_data: dict[str, deque[NiclaData]] = dict(
             map(
-                lambda field: (field.name, deque(maxlen=2)),
+                lambda field: (field.name, deque(maxlen=1)),
                 fields(self._nicla_name_mapping),
             )
         )
@@ -166,12 +167,12 @@ class ProsthesisHandler:
         )  # validates input mapping.
 
         self._motor_latest_data: dict[MotorId, deque[ServoMotorData]] = {
-            MotorId(motor_spec["can_id"]): deque([None], maxlen=1)
+            MotorId(motor_spec["can_id"]): deque(maxlen=1)
             for motor_spec in motor_mapping.values()
         }
 
         self._encoder_latest_data: dict[EncoderId, deque[EncoderData]] = {
-            EncoderId[MotorId(motor_spec["can_id"]).name]: deque([None], maxlen=1)
+            EncoderId[MotorId(motor_spec["can_id"]).name]: deque(maxlen=1)
             for motor_spec in motor_mapping.values()
         }
         self._encoder_offsets: dict[EncoderId, AbsoluteEncoderOffset] = {
@@ -247,9 +248,12 @@ class ProsthesisHandler:
         ctx = ModeContext(
             handle=self._epos_handle,
             K=K,
-            nicla_latest_data=self._nicla_latest_data,
-            encoder_latest_data=self._encoder_latest_data,
-            motor_latest_data=self._motor_latest_data,
+            #################################################
+            # NOTE: provided for "unsafe" operations.
+            _nicla_latest_data=self._nicla_latest_data,
+            _encoder_latest_data=self._encoder_latest_data,
+            _motor_latest_data=self._motor_latest_data,
+            #################################################
             next_mode=self._next_mode,
             next_fatigue=self._next_fatigue,
             mode_changed_queue=mode_changed_queue,
@@ -262,6 +266,7 @@ class ProsthesisHandler:
         )
         self._mode_fsm = ModeSelectionMachine(ctx, is_immediate_mode_switch)
         self._next_mode.next_value.value = self._mode_fsm.current_state.value
+        self._is_paused = False
         self._motor_command_queue = ctx.motor_command_queue
         self._is_keep_data_event = ctx.is_keep_data_event
 
@@ -432,14 +437,17 @@ class ProsthesisHandler:
         return False
 
     async def _run_state_machine(self):
-        nicla_euler_samples = dict(
-            map(lambda field: (field.name, 0.0), fields(self._nicla_name_mapping))
+        nicla_euler_samples: dict[str, float] = dict(
+            map(lambda field: (field.name, None), fields(self._nicla_name_mapping))
         )
-        nicla_gyro_samples = dict(
-            map(lambda field: (field.name, 0.0), fields(self._nicla_name_mapping))
+        nicla_gyro_samples: dict[str, float] = dict(
+            map(lambda field: (field.name, None), fields(self._nicla_name_mapping))
         )
-        encoder_samples = dict(
-            map(lambda key: (key, 0.0), self._encoder_latest_data.keys())
+        encoder_samples: dict[MotorId, EncoderData] = dict(
+            map(lambda key: (key, None), self._encoder_latest_data.keys())
+        )
+        motor_samples: dict[MotorId, ServoMotorData] = dict(
+            map(lambda key: (key, None), self._motor_latest_data.keys())
         )
 
         count = 0
@@ -452,13 +460,16 @@ class ProsthesisHandler:
             start_time_s = get_time()
             next_period_s += self._dt
 
-            if any(len(dq) == 0 for dq in self._nicla_latest_data.values()) or any(
-                dq[-1] is None for dq in self._encoder_latest_data.values()
+            if (
+                any(len(dq) == 0 for dq in self._nicla_latest_data.values())
+                or any(len(dq) == 0 for dq in self._encoder_latest_data.values())
+                or any(len(dq) == 0 for dq in self._motor_latest_data.values())
             ):
                 if (sleep_s := (next_period_s - start_time_s)) > 0:
                     await asyncio.sleep(sleep_s)
                 continue
 
+            # TODO: not super clean. Improve consistency in the future.
             async with self._nicla_offsets_lock:
                 for device_name, device_data in self._nicla_latest_data.items():
                     nicla_euler_samples[device_name] = (
@@ -469,71 +480,44 @@ class ProsthesisHandler:
 
             async with self._encoder_offsets_lock:
                 for encoder_id, encoder_data in self._encoder_latest_data.items():
-                    encoder_samples[encoder_id] = (
+                    encoder_samples[encoder_id] = encoder_data
+                    encoder_samples[encoder_id].angle = (
                         self._encoder_offsets[encoder_id].reference
                         + encoder_data[-1].angle
                         - self._encoder_offsets[encoder_id].offset
                     )
 
-            torso_angle = nicla_euler_samples[self._nicla_name_mapping.torso]
-            thigh_left_angle = nicla_euler_samples[self._nicla_name_mapping.thigh_left]
-            thigh_right_angle = nicla_euler_samples[
-                self._nicla_name_mapping.thigh_right
-            ]
+            for motor_id, motor_data in self._motor_latest_data.items():
+                motor_samples[motor_id] = motor_data[-1]
 
-            thigh_left_roll = torso_angle - thigh_left_angle
-            thigh_right_roll = torso_angle - thigh_right_angle
-            knee_left_roll = (
-                nicla_euler_samples[self._nicla_name_mapping.shank_left]
-                - thigh_left_angle
-            )
-            knee_right_roll = (
-                nicla_euler_samples[self._nicla_name_mapping.shank_right]
-                - thigh_right_angle
-            )
-            thigh_left_gyr = (
-                nicla_gyro_samples[self._nicla_name_mapping.thigh_left]
-                - nicla_gyro_samples[self._nicla_name_mapping.torso]
-            )
-            thigh_right_gyr = (
-                nicla_gyro_samples[self._nicla_name_mapping.thigh_right]
-                - nicla_gyro_samples[self._nicla_name_mapping.torso]
-            )
-            knee_right_gyr = (
-                nicla_gyro_samples[self._nicla_name_mapping.shank_right]
-                - nicla_gyro_samples[self._nicla_name_mapping.thigh_right]
-            )
-            knee_left_gyr = (
-                nicla_gyro_samples[self._nicla_name_mapping.shank_left]
-                - nicla_gyro_samples[self._nicla_name_mapping.thigh_left]
-            )
-
-            knee_enc_angle = encoder_samples[EncoderId.KNEE]
-            ankle_enc_angle = encoder_samples[EncoderId.ANKLE]
+            nicla_samples = NiclaSamples(nicla_euler_samples, nicla_gyro_samples)
 
             # If safe-stop was entered via researcher input, exo will be forced into `IDLE` mode
             with self._next_is_pause.lock:
                 next_is_pause = self._next_is_pause.next_value.value
 
-            if next_is_pause:
-                # Stop any in-progress motor movements.
+            # Stop any in-progress motor movements if safety stop triggered.
+            if next_is_pause and not self._is_paused:
                 for motor_id in self._active_motors:
                     epos_facade.quick_stop(self._epos_handle, motor_id)
+                self._is_paused = True
 
-                if self._mode_fsm.current_state.value != ModeEnum.IDLE.value.id:
-                    for motor_id in self._active_motors:
-                        epos_facade.enable(self._epos_handle, motor_id)
-                    self._mode_fsm.to_idle()
+            # Re-enable motors if safety is switched off.
+            elif not next_is_pause and self._is_paused:
+                for motor_id in self._active_motors:
+                    epos_facade.enable(self._epos_handle, motor_id)
+                self._is_paused = False
+                self._mode_fsm.to_idle()
+
             # Check if the handler received an update of state from the parent Pipeline mode with the new AI prediction.
             # The condition is evaluated on each loop iteration to recognize asynchronously received intent prediction.
             #   Internal logic of the `ModeSelectionMachine` will judge on which iteration to permit transition using conditional FSM transitions.
-            else:
+            elif not next_is_pause and not self._is_paused:
                 with self._next_mode.lock:
                     next_mode = self._next_mode.next_value.value
                     next_mode_sequence_id = self._next_mode.sequence_id.value
                     next_mode_source = self._next_mode.source.value
 
-                # TODO: uncomment after debugging.
                 if next_mode != self._mode_fsm.current_state.value:
                     # Store next mode's sequence ID to guarantee it doesn't change while switching states.
                     self._mode_fsm._sequence_id = next_mode_sequence_id
@@ -554,23 +538,14 @@ class ProsthesisHandler:
                         self._mode_fsm.to_hurdle()
 
             self._mode_fsm.update_sensor_values(
-                torso_angle=torso_angle,
-                thigh_left_angle=thigh_left_angle,
-                thigh_right_angle=thigh_right_angle,
-                thigh_left_roll=thigh_left_roll,
-                thigh_right_roll=thigh_right_roll,
-                knee_left_roll=knee_left_roll,
-                knee_right_roll=knee_right_roll,
-                thigh_left_gyr=thigh_left_gyr,
-                thigh_right_gyr=thigh_right_gyr,
-                knee_left_gyr=knee_left_gyr,
-                knee_right_gyr=knee_right_gyr,
-                knee_enc_angle=knee_enc_angle,
-                ankle_enc_angle=ankle_enc_angle,
+                nicla_samples=nicla_samples,
+                encoder_samples=encoder_samples,
+                motor_samples=motor_samples,
                 dt=self._dt,
             )
 
-            self._mode_fsm.step()
+            if not self._is_paused:
+                self._mode_fsm.step()
 
             end_time_s = get_time()
             if (sleep_s := next_period_s - end_time_s) > 0:
@@ -608,6 +583,7 @@ class ProsthesisHandler:
                     motor_sample = epos_facade.get_motor_data(
                         self._epos_handle, motor_id
                     )
+                    # TODO: hold the async lock while adding the new sample
                     self._motor_latest_data[motor_id].append(motor_sample)
 
                     if (

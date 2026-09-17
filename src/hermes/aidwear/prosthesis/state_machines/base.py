@@ -4,8 +4,13 @@ Description: Abstract class for the hierarchical exoskeleton controller
     of a predetermined ambulation mode.
 """
 
+from hermes.aidwear.prosthesis.utils.types import (
+    NiclaSamples,
+    EncoderData,
+    MotorId,
+    ServoMotorData
+)
 from abc import abstractmethod
-import numpy as np
 
 
 class ProsthesisStateMachine:
@@ -17,19 +22,9 @@ class ProsthesisStateMachine:
     @abstractmethod
     def update_sensor_values(
         self,
-        torso_angle: float = np.nan,
-        thigh_left_angle: float = np.nan,
-        thigh_right_angle: float = np.nan,
-        thigh_left_roll: float = np.nan,
-        thigh_right_roll: float = np.nan,
-        knee_left_roll: float = np.nan,
-        knee_right_roll: float = np.nan,
-        thigh_left_gyr: float = np.nan,
-        thigh_right_gyr: float = np.nan,
-        knee_left_gyr: float = np.nan,
-        knee_right_gyr: float = np.nan,
-        knee_enc_angle: float = np.nan,
-        ankle_enc_angle: float = np.nan,
+        nicla_samples: NiclaSamples,
+        encoder_samples: dict[MotorId, EncoderData],
+        motor_samples: dict[MotorId, ServoMotorData],
         dt: float = 0.01,
     ) -> None:
         """Does state machine dependent update with new sensor readings."""

@@ -20,7 +20,7 @@ from typing import TypeAlias, TYPE_CHECKING
 if TYPE_CHECKING:
     from hermes.aidwear.prosthesis.utils.config_manager import ConfigManager
 
-from hermes.aidwear.utils.types import NiclaData
+from hermes.aidwear.utils.types import NiclaData, NiclaLocation
 
 epos_handle: TypeAlias = ctypes.c_void_p
 
@@ -343,9 +343,9 @@ class NextIsPauseSynchronized:
 class ModeContext:
     handle: epos_handle
     K: dict[str, ServoImpedanceGains]
-    nicla_latest_data: dict[str, deque[NiclaData]]
-    encoder_latest_data: dict[MotorId, deque[EncoderData]]
-    motor_latest_data: dict[MotorId, deque[ServoMotorData]]
+    _nicla_latest_data: dict[str, deque[NiclaData]]
+    _encoder_latest_data: dict[MotorId, deque[EncoderData]]
+    _motor_latest_data: dict[MotorId, deque[ServoMotorData]]
     next_mode: NextModeSynchronized
     next_fatigue: NextFatigueSynchronized
     mode_changed_queue: "Queue[ModeTransition]"
@@ -560,3 +560,61 @@ class HurdlesParameters:
 class ProsthesisMotorMapping:
     knee: str
     ankle: str
+
+
+@dataclass
+class NiclaSamples:
+    torso_angle: float
+    thigh_left_angle: float
+    thigh_right_angle: float
+    thigh_left_roll: float
+    thigh_right_roll: float
+    knee_left_roll: float
+    knee_right_roll: float
+    thigh_left_gyr: float
+    thigh_right_gyr: float
+    knee_right_gyr: float
+    knee_left_gyr: float
+
+    def __init__(
+        self,
+        euler: dict[NiclaLocation, float],
+        gyroscope: dict[NiclaLocation, float]
+    ):
+        self.torso_angle = euler[NiclaLocation.TORSO]
+        self.thigh_left_angle = euler[NiclaLocation.THIGH_LEFT]
+        self.thigh_right_angle = euler[NiclaLocation.THIGH_RIGHT]
+
+        self.thigh_left_roll = (
+            self.torso_angle
+            - self.thigh_left_angle
+        )
+        self.thigh_right_roll = (
+            self.torso_angle
+            - self.thigh_right_angle
+        )
+        self.knee_left_roll = (
+            euler[NiclaLocation.SHANK_LEFT]
+            - self.thigh_left_angle
+        )
+        self.knee_right_roll = (
+            euler[NiclaLocation.SHANK_RIGHT]
+            - self.thigh_right_angle
+        )
+
+        self.thigh_left_gyr = (
+            gyroscope[NiclaLocation.THIGH_LEFT]
+            - gyroscope[NiclaLocation.TORSO]
+        )
+        self.thigh_right_gyr = (
+            gyroscope[NiclaLocation.THIGH_RIGHT]
+            - gyroscope[NiclaLocation.TORSO]
+        )
+        self.knee_right_gyr = (
+            gyroscope[NiclaLocation.SHANK_RIGHT]
+            - gyroscope[NiclaLocation.THIGH_RIGHT]
+        )
+        self.knee_left_gyr = (
+            gyroscope[NiclaLocation.SHANK_LEFT]
+            - gyroscope[NiclaLocation.THIGH_LEFT]
+        )

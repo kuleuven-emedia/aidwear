@@ -76,7 +76,7 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         self._gain_step = 0.01
 
         self._K = ctx.K
-        self._motor_latest_data = ctx.motor_latest_data
+        self._motor_latest_data = ctx._motor_latest_data
         self._state_changed_queue = ctx.state_changed_queue
         self._phase_estimate_queue = ctx.phase_estimate_queue
         self._motor_command_queue = ctx.motor_command_queue
