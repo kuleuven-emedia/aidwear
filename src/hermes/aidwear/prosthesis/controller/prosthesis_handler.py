@@ -137,7 +137,7 @@ class ProsthesisHandler:
         # Datastructures for managing the incoming Nicla data.
         self._nicla_latest_data: dict[str, deque[NiclaData]] = dict(
             map(
-                lambda field: (field.name, deque(maxlen=1)),
+                lambda field: (field.name, deque([None, None], maxlen=2)),
                 fields(self._nicla_name_mapping),
             )
         )
@@ -167,12 +167,12 @@ class ProsthesisHandler:
         )  # validates input mapping.
 
         self._motor_latest_data: dict[MotorId, deque[ServoMotorData]] = {
-            MotorId(motor_spec["can_id"]): deque(maxlen=1)
+            MotorId(motor_spec["can_id"]): deque([None, None], maxlen=2)
             for motor_spec in motor_mapping.values()
         }
 
         self._encoder_latest_data: dict[EncoderId, deque[EncoderData]] = {
-            EncoderId[MotorId(motor_spec["can_id"]).name]: deque(maxlen=1)
+            EncoderId[MotorId(motor_spec["can_id"]).name]: deque([None, None], maxlen=2)
             for motor_spec in motor_mapping.values()
         }
         self._encoder_offsets: dict[EncoderId, AbsoluteEncoderOffset] = {
@@ -480,7 +480,7 @@ class ProsthesisHandler:
 
             async with self._encoder_offsets_lock:
                 for encoder_id, encoder_data in self._encoder_latest_data.items():
-                    encoder_samples[encoder_id] = encoder_data
+                    encoder_samples[encoder_id] = encoder_data[-1]
                     encoder_samples[encoder_id].angle = (
                         self._encoder_offsets[encoder_id].reference
                         + encoder_data[-1].angle

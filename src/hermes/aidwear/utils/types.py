@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/exo/sensors/nicla/types.py
+Filename: hermes/aidwear/prosthesis/sensors/nicla/types.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2025-12-10
 Version: 1.0

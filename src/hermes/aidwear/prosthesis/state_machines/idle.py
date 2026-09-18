@@ -24,6 +24,7 @@ class Idle(StateMachine, ProsthesisStateMachine):
 
     def __init__(self, ctx: ModeContext):
         self._ctx = ctx
+        self._is_enabled = False
         self._is_activated = False
         super(Idle, self).__init__()
 
@@ -40,7 +41,7 @@ class Idle(StateMachine, ProsthesisStateMachine):
         #   Use values updated in `update_sensor_values` to decide when to change target.
         #   Commands will be logged by HERMES and drives will track target themselves,
         #   while reporting current values.
-        if not self._is_activated:
+        if self._is_enabled and not self._is_activated:
             activate_position_mode(self._ctx.handle, MotorId.ANKLE)
             activate_position_mode(self._ctx.handle, MotorId.KNEE)
         
@@ -52,6 +53,7 @@ class Idle(StateMachine, ProsthesisStateMachine):
 
     def update_sensor_values(self, **kwargs):
         # TODO: update some local variables.
+        self._is_enabled = True
         super().update_sensor_values(**kwargs)
 
     def step(self) -> None:
