@@ -54,7 +54,7 @@ class Idle(StateMachine, ProsthesisStateMachine):
     def update_sensor_values(self, **kwargs):
         # TODO: update some local variables.
         self._is_enabled = True
-        super().update_sensor_values(**kwargs)
+        #super().update_sensor_values(**kwargs)
 
     def step(self) -> None:
         self.send("cycle")

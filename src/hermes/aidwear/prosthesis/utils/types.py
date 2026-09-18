@@ -581,9 +581,9 @@ class NiclaSamples:
         euler: dict[NiclaLocation, float],
         gyroscope: dict[NiclaLocation, float]
     ):
-        self.torso_angle = euler[NiclaLocation.TORSO]
-        self.thigh_left_angle = euler[NiclaLocation.THIGH_LEFT]
-        self.thigh_right_angle = euler[NiclaLocation.THIGH_RIGHT]
+        self.torso_angle = euler[NiclaLocation.TORSO.value]
+        self.thigh_left_angle = euler[NiclaLocation.THIGH_LEFT.value]
+        self.thigh_right_angle = euler[NiclaLocation.THIGH_RIGHT.value]
 
         self.thigh_left_roll = (
             self.torso_angle
@@ -594,27 +594,27 @@ class NiclaSamples:
             - self.thigh_right_angle
         )
         self.knee_left_roll = (
-            euler[NiclaLocation.SHANK_LEFT]
+            euler[NiclaLocation.SHANK_LEFT.value]
             - self.thigh_left_angle
         )
         self.knee_right_roll = (
-            euler[NiclaLocation.SHANK_RIGHT]
+            euler[NiclaLocation.SHANK_RIGHT.value]
             - self.thigh_right_angle
         )
 
         self.thigh_left_gyr = (
-            gyroscope[NiclaLocation.THIGH_LEFT]
-            - gyroscope[NiclaLocation.TORSO]
+            gyroscope[NiclaLocation.THIGH_LEFT.value]
+            - gyroscope[NiclaLocation.TORSO.value]
         )
         self.thigh_right_gyr = (
-            gyroscope[NiclaLocation.THIGH_RIGHT]
-            - gyroscope[NiclaLocation.TORSO]
+            gyroscope[NiclaLocation.THIGH_RIGHT.value]
+            - gyroscope[NiclaLocation.TORSO.value]
         )
         self.knee_right_gyr = (
-            gyroscope[NiclaLocation.SHANK_RIGHT]
-            - gyroscope[NiclaLocation.THIGH_RIGHT]
+            gyroscope[NiclaLocation.SHANK_RIGHT.value]
+            - gyroscope[NiclaLocation.THIGH_RIGHT.value]
         )
         self.knee_left_gyr = (
-            gyroscope[NiclaLocation.SHANK_LEFT]
-            - gyroscope[NiclaLocation.THIGH_LEFT]
+            gyroscope[NiclaLocation.SHANK_LEFT.value]
+            - gyroscope[NiclaLocation.THIGH_LEFT.value]
         )

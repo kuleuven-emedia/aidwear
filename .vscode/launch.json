@@ -162,7 +162,7 @@
                 "--baudrate", "500000",
                 "--node-id", "1",
                 "--method", "-4",
-                "--current-threshold", "1000",
+                "--current-threshold", "2000",
                 "--crawl-speed", "100",
                 "--retreat-speed", "100",
                 "--acceleration", "1000",
