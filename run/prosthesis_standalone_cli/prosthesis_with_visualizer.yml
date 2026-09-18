@@ -1,0 +1,165 @@
+host_ip: "127.0.0.1"
+is_master_broker: True
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+logging_spec:
+  stream_period_s: 30
+  stream_hdf5: True
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+producer_specs:
+  - package: "aidwear.cli"
+    class: "CliProducer"
+    node_id: "cli_control"
+    settings:
+      buf_len: 1_000
+
+consumer_specs:
+  - package: "aidwear.visualizer"
+    class: "VisualizerConsumer"
+    node_id: "visualizer"
+    settings:
+      history_len: 150
+      draw_interval_s: 0.04
+      dark_mode: True
+      data_in_specs:
+        - package: "aidwear.prosthesis"
+          class: "ProsthesisPipeline"
+          node_id: "prosthesis"
+          topics:
+            - "nicla_torso"
+            - "nicla_thigh_right"
+            - "nicla_thigh_left"
+            - "nicla_shank_right"
+            - "nicla_shank_left"
+            - "motor_knee"
+            - "motor_ankle"
+            - "encoder_knee"
+            - "encoder_ankle"
+          settings:
+            niclas:
+              buf_len: 100
+              sampling_rate_hz: 50
+              connection_type: "BLE"
+              is_pelvis_and_feet: False
+              device_mapping:
+                torso: "D8:4E:18:CC:F6:62"
+                thigh_right: "4D:8B:11:D5:F2:46"
+                thigh_left: "A3:2F:AF:84:4E:1D"
+                shank_right: "96:CD:19:11:5B:F7"
+                shank_left: "D5:A0:BA:27:CA:09"
+              gravity_scaling_factor: 4
+              gyroscope_scaling_factor: 500
+              is_acc: True
+              is_gyr: True
+              is_mag: False
+              is_euler: True
+              is_quat: False
+              is_temp: False
+              is_baro: False
+              is_hum: False
+            motors:
+              device_mapping:
+                knee:
+                  can_id: 1
+                ankle:
+                  can_id: 2
+              sampling_rate_hz: 50
+              buf_len: 100
+            telemetry:
+              buf_len: 100
+    logging_spec:
+      stream_period_s: 60
+
+pipeline_specs:
+  - package: "aidwear.prosthesis"
+    class: "ProsthesisPipeline"
+    node_id: "prosthesis"
+    settings:
+      data_out_spec:
+        dt: 0.01
+        base_assistance: 50.0
+        is_immediate_mode_switch: True
+        num_majority_vote: 5
+        fsm_config_path: null # "run/fsm_config_default.yml"
+        niclas:
+          buf_len: 3_000
+          sampling_rate_hz: 50
+          connection_type: "BLE" # BLE or I2C
+          is_pelvis_and_feet: False
+          device_mapping: # for BLE connection type
+            torso: "D8:4E:18:CC:F6:62"
+            thigh_right: "4D:8B:11:D5:F2:46"
+            thigh_left: "A3:2F:AF:84:4E:1D"
+            shank_right: "96:CD:19:11:5B:F7"
+            shank_left: "D5:A0:BA:27:CA:09"
+          service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+          char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+          gravity_scaling_factor: 4
+          gyroscope_scaling_factor: 500
+          is_acc: True
+          is_gyr: True
+          is_mag: False
+          is_euler: True
+          is_quat: False
+          is_temp: False
+          is_baro: False
+          is_hum: False
+        motors:
+          is_emulate_can: False # creates a virtual CAN bus for testing.
+          epos:
+            device: "EPOS4"
+            protocol: "CAN_OPEN"
+            interface: "CAN_mcp251xfd 0"
+            port: "CAN0"
+            baudrate: 500_000
+            timeout_ms: 500
+          device_mapping:
+            knee:
+              can_id: 1
+              type: "AK10_9"
+              homing:
+                homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
+                acceleration: 1_000
+                speed_switch: 100
+                speed_index: 100
+                current_threshold_ma: 1_000
+                home_offset_enc_ticks: 0
+                home_position_coordinate: 0
+              absolute_encoder_reference: 180.0
+            ankle:
+              can_id: 2
+              type: "AK80_8"
+              homing:
+                homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
+                acceleration: 1_000
+                speed_switch: 900
+                speed_index: 900
+                current_threshold_ma: 1_000
+                home_offset_enc_ticks: -128_000
+                home_position_coordinate: 0
+              absolute_encoder_reference: 90.0
+          sampling_rate_hz: 50
+          buf_len: 3_000
+        telemetry:
+          buf_len: 30_000
+
+      data_in_specs:
+        - package: "aidwear.cli"
+          class: "CliProducer"
+          node_id: "cli_control"
+          topics:
+            - "intent"
+            - "fatigue"
+            - "event"
+            - "safety_stop"
+          settings:
+            buf_len: 1_000

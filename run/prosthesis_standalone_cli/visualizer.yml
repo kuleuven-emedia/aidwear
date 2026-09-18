@@ -1,0 +1,75 @@
+host_ip: "127.0.0.1"
+is_master_broker: True
+
+# TODO: specify slave connection to the prosthesis
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+logging_spec:
+  stream_period_s: 60
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+producer_specs: []
+
+consumer_specs:
+  - package: "aidwear.visualizer"
+    class: "VisualizerConsumer"
+    node_id: "visualizer"
+    settings:
+      history_len: 150
+      draw_interval_s: 0.04
+      dark_mode: True
+      data_in_specs:
+        - package: "aidwear.prosthesis"
+          class: "ProsthesisPipeline"
+          node_id: "prosthesis"
+          topics:
+            - "nicla_torso"
+            - "nicla_thigh_right"
+            - "nicla_thigh_left"
+            - "nicla_shank_right"
+            - "nicla_shank_left"
+            - "motor_knee"
+            - "motor_ankle"
+            - "encoder_knee"
+            - "encoder_ankle"
+          settings:
+            niclas:
+              buf_len: 100
+              sampling_rate_hz: 50
+              connection_type: "BLE" # BLE or I2C
+              is_pelvis_and_feet: False
+              device_mapping:
+                torso: "D8:4E:18:CC:F6:62"
+                thigh_right: "4D:8B:11:D5:F2:46"
+                thigh_left: "A3:2F:AF:84:4E:1D"
+                shank_right: "96:CD:19:11:5B:F7"
+                shank_left: "D5:A0:BA:27:CA:09"
+              gravity_scaling_factor: 4
+              gyroscope_scaling_factor: 500
+              is_acc: True
+              is_gyr: True
+              is_mag: False
+              is_euler: True
+              is_quat: False
+              is_temp: False
+              is_baro: False
+              is_hum: False
+            motors:
+              device_mapping:
+                knee:
+                  can_id: 1
+                ankle:
+                  can_id: 2
+              sampling_rate_hz: 50
+              buf_len: 100
+            telemetry:
+              buf_len: 100
+
+pipeline_specs: []
