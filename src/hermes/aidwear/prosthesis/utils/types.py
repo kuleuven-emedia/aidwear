@@ -573,48 +573,64 @@ class NiclaSamples:
     knee_right_roll: float
     thigh_left_gyr: float
     thigh_right_gyr: float
-    knee_right_gyr: float
     knee_left_gyr: float
+    knee_right_gyr: float
 
-    def __init__(
-        self,
-        euler: dict[NiclaLocation, float],
-        gyroscope: dict[NiclaLocation, float]
-    ):
-        self.torso_angle = euler[NiclaLocation.TORSO.value]
-        self.thigh_left_angle = euler[NiclaLocation.THIGH_LEFT.value]
-        self.thigh_right_angle = euler[NiclaLocation.THIGH_RIGHT.value]
+    @classmethod
+    def from_measurements(
+        cls,
+        euler: dict[str, float],
+        gyroscope: dict[str, float],
+        gyroscope_scaling_factor: float,
+    ) -> "NiclaSamples":
+        torso_angle = euler[NiclaLocation.TORSO.value]
+        thigh_left_angle = euler[NiclaLocation.THIGH_LEFT.value]
+        thigh_right_angle = euler[NiclaLocation.THIGH_RIGHT.value]
 
-        self.thigh_left_roll = (
-            self.torso_angle
-            - self.thigh_left_angle
+        thigh_left_roll = (
+            torso_angle
+            - thigh_left_angle
         )
-        self.thigh_right_roll = (
-            self.torso_angle
-            - self.thigh_right_angle
+        thigh_right_roll = (
+            torso_angle
+            - thigh_right_angle
         )
-        self.knee_left_roll = (
+        knee_left_roll = (
             euler[NiclaLocation.SHANK_LEFT.value]
-            - self.thigh_left_angle
+            - thigh_left_angle
         )
-        self.knee_right_roll = (
+        knee_right_roll = (
             euler[NiclaLocation.SHANK_RIGHT.value]
-            - self.thigh_right_angle
+            - thigh_right_angle
         )
 
-        self.thigh_left_gyr = (
+        thigh_left_gyr = gyroscope_scaling_factor * (
             gyroscope[NiclaLocation.THIGH_LEFT.value]
             - gyroscope[NiclaLocation.TORSO.value]
         )
-        self.thigh_right_gyr = (
+        thigh_right_gyr = gyroscope_scaling_factor * (
             gyroscope[NiclaLocation.THIGH_RIGHT.value]
             - gyroscope[NiclaLocation.TORSO.value]
         )
-        self.knee_right_gyr = (
-            gyroscope[NiclaLocation.SHANK_RIGHT.value]
-            - gyroscope[NiclaLocation.THIGH_RIGHT.value]
-        )
-        self.knee_left_gyr = (
+        knee_left_gyr = gyroscope_scaling_factor * (
             gyroscope[NiclaLocation.SHANK_LEFT.value]
             - gyroscope[NiclaLocation.THIGH_LEFT.value]
         )
+        knee_right_gyr = gyroscope_scaling_factor * (
+            gyroscope[NiclaLocation.SHANK_RIGHT.value]
+            - gyroscope[NiclaLocation.THIGH_RIGHT.value]
+        )
+
+        return cls(
+            torso_angle=torso_angle,
+            thigh_left_angle=thigh_left_angle,
+            thigh_right_angle=thigh_right_angle,
+            thigh_left_roll=thigh_left_roll,
+            thigh_right_roll=thigh_right_roll,
+            knee_left_roll=knee_left_roll,
+            knee_right_roll=knee_right_roll,
+            thigh_left_gyr=thigh_left_gyr,
+            thigh_right_gyr=thigh_right_gyr,
+            knee_left_gyr=knee_left_gyr,
+            knee_right_gyr=knee_right_gyr,
+        ) 

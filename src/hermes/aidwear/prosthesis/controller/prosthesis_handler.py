@@ -159,6 +159,13 @@ class ProsthesisHandler:
         elif nicla_connection_type == NiclaConnectionType.I2C:
             self._nicla_backend = NiclaI2cBackend()
 
+        self._gravity_scaling_factor = (
+            niclas["gravity_scaling_factor"] * 9.80665 / 32768.0
+        )
+        self._gyroscope_scaling_factor = (
+            niclas["gyroscope_scaling_factor"] / 32768.0
+        )
+
         ##### Motor related variables.
         motor_mapping: dict[str, dict] = motors["device_mapping"]
         # self._is_emulate_can = "is_emulate_can" in motors and motors["is_emulate_can"]
@@ -490,7 +497,11 @@ class ProsthesisHandler:
             for motor_id, motor_data in self._motor_latest_data.items():
                 motor_samples[motor_id] = motor_data[-1]
 
-            nicla_samples = NiclaSamples(nicla_euler_samples, nicla_gyro_samples)
+            nicla_samples = NiclaSamples(
+                nicla_euler_samples,
+                nicla_gyro_samples,
+                self._gyroscope_scaling_factor,
+            )
 
             # If safe-stop was entered via researcher input, exo will be forced into `IDLE` mode
             with self._next_is_pause.lock:
@@ -583,7 +594,6 @@ class ProsthesisHandler:
                     motor_sample = epos_facade.get_motor_data(
                         self._epos_handle, motor_id
                     )
-                    # TODO: hold the async lock while adding the new sample
                     self._motor_latest_data[motor_id].append(motor_sample)
 
                     if (
@@ -631,13 +641,6 @@ class ProsthesisHandler:
         is_calibrated = False
         while not is_calibrated:
             is_calibrated = await self._recv_calibration_trigger(self._calibrate_motors)
-
-        # for motor_id in self._active_motors:
-        #     try:
-        #         epos_facade.disable(self._epos_handle, motor_id)
-        #     except Exception as e:
-        #         print(f"Warning: Failed to disable motor {motor_id.name}: {e}", flush=True)
-        # epos_facade.shutdown(self._epos_handle, self._active_motors)
 
         # 2) Connect to the Nicla Sense ME sensors and calibrate offsets.
         await self._nicla_backend.connect()
