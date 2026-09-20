@@ -16,6 +16,7 @@ data/
 trial_auto_id.txt
 *.csv
 *.svg
+*.doc
 
 # Site data
 site/
