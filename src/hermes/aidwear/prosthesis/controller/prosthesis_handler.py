@@ -480,24 +480,25 @@ class ProsthesisHandler:
             async with self._nicla_offsets_lock:
                 for device_name, device_data in self._nicla_latest_data.items():
                     nicla_euler_samples[device_name] = (
-                        wrap_angle(device_data[-1].euler[0], 90)
-                        - self._nicla_offsets[device_name]
+                        device_data[-1].euler[0] - self._nicla_offsets[device_name]
                     )
                     nicla_gyro_samples[device_name] = device_data[-1].gyroscope[0]
 
             async with self._encoder_offsets_lock:
                 for encoder_id, encoder_data in self._encoder_latest_data.items():
-                    encoder_samples[encoder_id] = encoder_data[-1]
-                    encoder_samples[encoder_id].angle = (
-                        self._encoder_offsets[encoder_id].reference
-                        + encoder_data[-1].angle
-                        - self._encoder_offsets[encoder_id].offset
+                    #encoder_samples[encoder_id] = encoder_data[-1]
+                    #encoder_samples[encoder_id].angle = (encoder_data[-1].angle - self._encoder_offsets[encoder_id].offset # + self._encoder_offsets[encoder_id].reference)  
+                    sample = encoder_data[-1]
+                    encoder_samples[encoder_id] = EncoderData(
+                        timestamp=sample.timestamp,
+                        angle= self._encoder_offsets[encoder_id].offset - sample.angle,
+                        is_error=sample.is_error,
                     )
 
             for motor_id, motor_data in self._motor_latest_data.items():
                 motor_samples[motor_id] = motor_data[-1]
 
-            nicla_samples = NiclaSamples(
+            nicla_samples = NiclaSamples.from_measurements(
                 nicla_euler_samples,
                 nicla_gyro_samples,
                 self._gyroscope_scaling_factor,

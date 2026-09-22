@@ -84,15 +84,15 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self._param = HurdlesParameters(
             # --------------------------- Stance -> Swing (T1) ---------------------------
             stance_to_swing_th_roll_pr=20,  # θ_thigh,pr > 20 deg
-            stance_to_swing_th_gyr_pr=30,  # θ̇_thigh,pr > 30 deg/s
+            stance_to_swing_th_gyr_pr=30,# put 200  # θ̇_thigh,pr > 30 deg/s
             # --------------------------- Swing -> Stance (T2) ---------------------------
             swing_to_stance_th_roll_pr=20,  # θ_thigh,pr < 20 deg
         )
 
         # Parameters for motor control
-        self._swing_stiffness = 0.2
+        self._swing_stiffness = 0.1
         self._swing_damping = 0.05
-        self._swing_current_limit_ma = 2000
+        self._swing_current_limit_ma = 1000
         self._knee_velocity = 0.0
 
         activate_position_mode(self._ctx.handle, MotorId.ANKLE)
@@ -121,6 +121,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self._state_changed_queue.put(
             StateTransition(timestamp=get_time(), state=state.value)
         )
+
     def swing_to_stance(self):
         activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         activate_position_mode(self._ctx.handle, MotorId.KNEE)
@@ -129,7 +130,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
     def stance_to_swing(self):
         activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         activate_current_mode(self._ctx.handle, MotorId.KNEE)
-        self.is_new_target = True
+        self.is_new_target = False
 
     # T1: Stance -> Swing
     def is_stance_to_swing(self):
@@ -139,7 +140,6 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         ):
             self._knee_swing_start = self._knee_pr_roll
             self._thigh_swing_start = self._thigh_pr_roll
-            self._has_swing_reference = True
 
         return (
             self._thigh_pr_roll > self._param.stance_to_swing_th_roll_pr
@@ -151,7 +151,6 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         if (
             self._thigh_pr_roll < self._param.swing_to_stance_th_roll_pr
         ):
-            self._has_swing_reference = False
             self._knee_reference = 0  # self._knee_swing_start
             self._ankle_reference = 0
 
@@ -161,8 +160,8 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
     def on_enter_stance(self):
         # Trigger new command writing if the reference changes.
         if self.is_new_target:
-            pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(self._ankle_reference))
-            pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(self._knee_reference))
+            pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
+            pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
             self.is_new_target = False
 
     def on_enter_swing(self):
@@ -170,24 +169,25 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         if self.is_new_target:
             # KNEE: impedance control from absolute encoder angle/velocity.
             knee_error = self._knee_reference - self._knee_pr_roll
-
+            #print(self._knee_pr_roll)
             # TODO: Convert torque to current using a simple linear model.
             knee_torque = (
                 self._swing_stiffness * knee_error
                 - self._swing_damping * self._knee_velocity
             )
-            knee_current = ((knee_torque * 8) * 1000) / (
-                (-5 / 9) * self._knee_pr_roll + 10
-            )
+    
+            knee_current = ((knee_torque * 8)*1000) / ((5 / 9) * self._knee_pr_roll + 10)
             knee_current = int(
-                np.clip(knee_torque, -self._swing_current_limit_ma, self._swing_current_limit_ma)
+                np.clip(knee_current, -self._swing_current_limit_ma, self._swing_current_limit_ma)
             )
+            self._knee_current = knee_current
 
             cm_set_current_must(self._ctx.handle, MotorId.KNEE, knee_current)
-            
             # ANKLE: stays in position mode at reference.
             pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(self._ankle_reference))
             self.is_new_target = False
+
+            #print("[swing] thigh_roll={:.2f} knee_error={:.2f}  knee_ref={:.2f} knee_current={:.2f} knee_torque={:.2f}".format(self._thigh_pr_roll,knee_error,self._knee_reference,knee_current,knee_torque,),flush=True,)
 
     def _update_motors_reference(self):
         """
@@ -205,6 +205,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
     def update_sensor_values(
         self,
         nicla_samples: NiclaSamples,
+        #nicla_euler_samples: NiclaSamples,
         encoder_samples: dict[EncoderId, EncoderData],
         motor_samples: dict[MotorId, ServoMotorData],
         dt: float = 0.01,
@@ -214,47 +215,30 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
 
         # TODO: save the variables of interest to the self._*, to use in the next "step()".
         self._thigh_left_gyr = nicla_samples.thigh_left_gyr
+        #print(nicla_samples)
         self._thigh_left_roll = nicla_samples.thigh_left_roll
         self._shank_left_gyr = nicla_samples.knee_left_gyr
         self._shank_left_roll = nicla_samples.knee_left_roll
         # I'm using the right leg as prosthetic one
         self._thigh_pr_gyr = nicla_samples.thigh_right_gyr
-        self._thigh_pr_roll = nicla_samples.thigh_right_roll
         self._shank_pr_gyr = nicla_samples.knee_right_gyr
         self._shank_pr_roll = nicla_samples.knee_right_roll
 
-        print(
-            "hurdle sensors: "
-            f"thigh_left_gyr={self._thigh_left_gyr:.2f}, "
-            f"thigh_left_roll={self._thigh_left_roll:.2f}, "
-            f"shank_left_gyr={self._shank_left_gyr:.2f}, "
-            f"shank_left_roll={self._shank_left_roll:.2f}, "
-            f"thigh_pr_gyr={self._thigh_pr_gyr:.2f}, "
-            f"thigh_pr_roll={self._thigh_pr_roll:.2f}, "
-            f"shank_pr_gyr={self._shank_pr_gyr:.2f}, "
-            f"shank_pr_roll={self._shank_pr_roll:.2f}",
-            flush=True,
-        )
-
         self._torso_roll = nicla_samples.torso_angle
-        self._knee_pr_roll = encoder_samples[EncoderId.KNEE].angle
-        self._knee_pr_roll_timestamp = encoder_samples[EncoderId.KNEE].timestamp
+        self._thigh_pr_roll = nicla_samples.thigh_right_roll
+        self._knee_pr_roll = encoder_samples[EncoderId.KNEE].angle #-180
+        #self._knee_pr_roll_timestamp = encoder_samples[EncoderId.KNEE].timestamp
 
         if self._knee_pr_roll is not None:
-            if self._knee_encoder_prev_time is not None:
-                dt = self._knee_pr_roll_timestamp - self._knee_encoder_prev_time
-                if dt > 0:
-                    self._knee_velocity = (
-                        self._knee_pr_roll - self._knee_encoder_prev_angle
-                    ) / dt
+            if self._knee_encoder_prev_angle is not None:
+                self._knee_velocity = (self._knee_pr_roll - self._knee_encoder_prev_angle) / dt
             else:
                 self._knee_velocity = 0.0
-
-            self._knee_encoder_prev_time = self._knee_pr_roll_timestamp
+            #self._knee_encoder_prev_time = self._knee_pr_roll_timestamp
             self._knee_encoder_prev_angle = self._knee_pr_roll
         
         # Update the reference trajectory for both motors.
-        #self._update_motors_reference()
+        self._update_motors_reference()
 
     def step(self) -> None:
         self.send("cycle")
