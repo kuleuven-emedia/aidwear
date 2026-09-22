@@ -7,7 +7,6 @@ Description: Prosthesis-specific state machine for the hierarchical control
 from statemachine import Event, State, StateMachine
 
 from .base import ProsthesisStateMachine
-from ..motor_control.epos_commands import activate_position_mode, pm_set_position_must
 from ..utils.types import (
     ModeContext,
     StateEnum,
@@ -24,8 +23,6 @@ class Idle(StateMachine, ProsthesisStateMachine):
 
     def __init__(self, ctx: ModeContext):
         self._ctx = ctx
-        self._is_enabled = False
-        self._is_activated = False
         super(Idle, self).__init__()
 
     # Post-transition synchronous callback.
@@ -41,20 +38,12 @@ class Idle(StateMachine, ProsthesisStateMachine):
         #   Use values updated in `update_sensor_values` to decide when to change target.
         #   Commands will be logged by HERMES and drives will track target themselves,
         #   while reporting current values.
-        if self._is_enabled and not self._is_activated:
-            activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-            activate_position_mode(self._ctx.handle, MotorId.KNEE)
-        
-            # TODO: replace later with live auto-loaded configs from the YAML file via the ConfigManager.
-            # NOTE: this will allow live changes like in LabView (must move the position command to the `on_enter_idle` then).
-            pm_set_position_must(self._ctx.handle, MotorId.ANKLE, 0)
-            pm_set_position_must(self._ctx.handle, MotorId.KNEE, 0)
-            self._is_activated = True
+        # Set target positions using the high-level Facade
+        self._ctx.epos.set_target_position(MotorId.ANKLE, 0)
+        self._ctx.epos.set_target_position(MotorId.KNEE, 0)
 
     def update_sensor_values(self, **kwargs):
-        # TODO: update some local variables.
-        self._is_enabled = True
-        #super().update_sensor_values(**kwargs)
+        pass
 
     def step(self) -> None:
         self.send("cycle")

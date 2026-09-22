@@ -83,7 +83,6 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self._inactivity_dur = 0        # counter_inactivity
         self._bending_dur = 0           # time_bending
         self._first_stride = WalkingFirstStrideEnum.NONE
-        self.is_new_target = True
         self._swing_current_ma = 500
         self._knee_reference = 0
         self._knee_current = 0
@@ -137,45 +136,31 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self.cycles = 0
         self.prev_raw = 0.0
 
-        activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        activate_position_mode(self._ctx.handle, MotorId.KNEE)
         super(Walking, self).__init__()
 
     # Post-transition synchronous callback.
     def after_transition(self, event: Event, state: State):
-        self.is_new_target = True
         self._state_changed_queue.put(
             StateTransition(timestamp=get_time(), state=state.value)
         )
 
     def idle_to_one_step(self):
-        self.is_new_target = True
-        #print('one step')
+        print('idle -> one step')
 
     def one_step_to_stance(self):
-        self.is_new_target = False 
-        #print('stance')
+        print('one step -> stance')
 
     def one_step_to_idle(self):
-        self.is_new_target = False 
-        #print('idle')
+        print('one step -> idle')
 
     def stance_to_idle(self):
-        self.is_new_target = False  
-        #print('idle')
+        print('stance -> idle')
 
     def swing_to_stance(self):
-        #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        activate_position_mode(self._ctx.handle, MotorId.KNEE)
-        self.is_new_target = True
-        print('stance')
+        print('swing -> stance')
 
     def stance_to_swing(self):
-        #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        activate_current_mode(self._ctx.handle, MotorId.KNEE)
-        self.is_new_target = True  
-        print('swing')
-     
+        print('stance -> swing')
 
     # T1: Idle -> One Step
     def is_idle_to_one_step(self):
@@ -209,32 +194,21 @@ class Walking(StateMachine, ProsthesisStateMachine):
 
     # Actions.    ########## for the moment i'm Using a random value for the servo
     def on_enter_idle(self):
-        if not self.is_new_target:
-            return
-        pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
-        pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
-        self.is_new_target = False
+        self._ctx.epos.set_target_position(self._ctx.handle, MotorId.ANKLE, int(0))
+        self._ctx.epos.set_target_position(self._ctx.handle, MotorId.KNEE, int(0))
 
     def on_enter_one_step(self):
-        if not self.is_new_target:
-            return
-        #pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
-        #pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
-        self.is_new_target = False
+        self._ctx.epos.set_target_position(self._ctx.handle, MotorId.ANKLE, int(0))
+        self._ctx.epos.set_target_position(self._ctx.handle, MotorId.KNEE, int(0))
 
     def on_enter_stance(self):
-        if not self.is_new_target:
-            return
-        pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
-        pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
-        self.is_new_target = False
+        self._ctx.epos.set_target_position(self._ctx.handle, MotorId.ANKLE, int(0))
+        self._ctx.epos.set_target_position(self._ctx.handle, MotorId.KNEE, int(0))
 
     def on_enter_swing(self):
-        if not self.is_new_target:
-            return
         self._update_swing_current()
-        cm_set_current_must(self._ctx.handle, MotorId.KNEE, self._knee_current)
-        self.is_new_target = False
+        self._ctx.epos.set_target_position(self._ctx.handle, MotorId.ANKLE, int(0))
+        self._ctx.epos.set_target_current(self._ctx.handle, MotorId.KNEE, self._knee_current)
 
     def _update_swing_current(self):
         """Send a fresh knee current command each control cycle while in swing."""
@@ -243,7 +217,6 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self._knee_current = int(
             np.clip(knee_current, -self._swing_current_ma, self._swing_current_ma)
         )
-        self.is_new_target = True
 
     def _kalman_phase_update(self, phase_raw):
         dt = 0.01  # sample period [s]
@@ -282,7 +255,6 @@ class Walking(StateMachine, ProsthesisStateMachine):
     def update_sensor_values(
         self,
         nicla_samples: NiclaSamples,
-        #nicla_euler_samples: NiclaSamples,
         encoder_samples: dict[EncoderId, EncoderData],
         motor_samples: dict[MotorId, ServoMotorData],
         dt: float = 0.01,

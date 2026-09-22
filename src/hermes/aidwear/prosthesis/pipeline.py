@@ -333,33 +333,44 @@ class ProsthesisPipeline(Pipeline):
                     output[f"nicla_{nicla_name}"][data_name] = data_getter(data)
                 self._publish(process_time_s=get_time(), new_data=output)
 
-        # Motor command data.
-        motor_command_data: dict[str, tuple[str, list[MotorCommand]]] = {
-            motor_spec["can_id"]: (motor_name, [])
-            for motor_name, motor_spec in self._motor_mapping.items()
-        }
-        while not self._motor_command_queue.empty():
-            motor_command = self._motor_command_queue.get_nowait()
-            motor_command_data[motor_command.motor_id][1].append(motor_command)
-        for motor_name, data in motor_command_data.values():
-            if data:
-                output = {
-                    f"command_{motor_name}": {
-                        "toa_s": np.array(
-                            [list(map(lambda m: m.timestamp, data))], dtype=np.float64
-                        ).transpose((1, 0)),
-                        "data": np.array(
-                            [list(map(lambda m: m.command_data, data))], dtype="V8"
-                        ).transpose((1, 0)),
-                        "log_data": np.array(
-                            [list(map(lambda m: m.log_data, data))], dtype="V20"
-                        ).transpose((1, 0)),
-                        "control_mode": np.array(
-                            [list(map(lambda m: m.control_mode, data))], dtype=np.uint8
-                        ).transpose((1, 0)),
-                    }
-                }
-                self._publish(process_time_s=get_time(), new_data=output)
+        # # Motor command data.
+        # # TODO: verify.
+        # motor_command_data: dict[str, tuple[str, list[MotorCommand]]] = {
+        #     motor_spec["can_id"]: (motor_name, [])
+        #     for motor_name, motor_spec in self._motor_mapping.items()
+        # }
+        # while not self._motor_command_queue.empty():
+        #     motor_command = self._motor_command_queue.get_nowait()
+        #     cmd_id = (
+        #         motor_command.motor_id.value
+        #         if isinstance(motor_command.motor_id, MotorId)
+        #         else motor_command.motor_id
+        #     )
+        #     if cmd_id in motor_command_data:
+        #         motor_command_data[cmd_id][1].append(motor_command)
+        #     elif str(cmd_id) in motor_command_data:
+        #         motor_command_data[str(cmd_id)][1].append(motor_command)
+        #     elif isinstance(cmd_id, str) and cmd_id.isdigit() and int(cmd_id) in motor_command_data:
+        #         motor_command_data[int(cmd_id)][1].append(motor_command)
+        # for motor_name, data in motor_command_data.values():
+        #     if data:
+        #         output = {
+        #             f"command_{motor_name}": {
+        #                 "toa_s": np.array(
+        #                     [list(map(lambda m: m.timestamp, data))], dtype=np.float64
+        #                 ).transpose((1, 0)),
+        #                 "data": np.array(
+        #                     [list(map(lambda m: m.command_data, data))], dtype="V8"
+        #                 ).transpose((1, 0)),
+        #                 "log_data": np.array(
+        #                     [list(map(lambda m: m.log_data, data))], dtype="V20"
+        #                 ).transpose((1, 0)),
+        #                 "control_mode": np.array(
+        #                     [list(map(lambda m: m.control_mode, data))], dtype=np.uint8
+        #                 ).transpose((1, 0)),
+        #             }
+        #         }
+        #         self._publish(process_time_s=get_time(), new_data=output)
 
         # Locomotion mode.
         mode_transitions: list[ModeTransition] = []
@@ -431,6 +442,7 @@ class ProsthesisPipeline(Pipeline):
             and self._mode_changed_queue.empty()
             and self._state_changed_queue.empty()
             and self._phase_estimate_queue.empty()
+            # and self._motor_command_queue.empty()
         ):
             # Calibration event data.
             calibration_data: dict[CalibrationEventType, list[CalibrationEvent]] = {

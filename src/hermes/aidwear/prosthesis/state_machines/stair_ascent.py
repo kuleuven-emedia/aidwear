@@ -79,8 +79,6 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         self._knee_encoder_prev_angle = None
         self._knee_velocity = 0.0
 
-        self.is_new_target = True
-
         self._torque_knee_reference = 0
         self._torque_ankle_reference = 0
 
@@ -130,7 +128,6 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
     def stance_to_push_off(self):
         #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         #activate_position_mode(self._ctx.handle, MotorId.KNEE)
-        self.is_new_target = True
         print('push')
 
     def push_off_to_swing(self):
@@ -139,19 +136,16 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         self._thigh_swing_start = self._thigh_pr_roll
         self._knee_swing_start = self._knee_pr_roll
         self._angle_knee_reference = self._knee_swing_start
-        self.is_new_target = True
         print('swing')
 
     def swing_to_step_up(self):
         #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         #activate_current_mode(self._ctx.handle, MotorId.KNEE)
-        self.is_new_target = True
         print('step')
     
     def step_up_to_stance(self):
         #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         #activate_position_mode(self._ctx.handle, MotorId.KNEE)
-        self.is_new_target = True
         print('stance')
 
     # T1: Stance -> Push-off
@@ -186,10 +180,8 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
 
     # Actions.
     def on_enter_stance(self):
-        if self.is_new_target:
-            #pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
-            #pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
-            self.is_new_target = False
+        #pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
+        #pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
         self._step_up_dur = 0
         self._inactivity_dur = 0
 
@@ -222,7 +214,6 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
             self._knee_swing_start + self._knee_thigh_gain * thigh_change
         )
         self._ankle_reference = 0
-        self.is_new_target = True
 
     def update_sensor_values(
         self,
@@ -236,7 +227,6 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
 
         # TODO: save the variables of interest to the self._*, to use in the next "step()".
         self._thigh_intact_gyr = nicla_samples.thigh_left_gyr
-        #print(nicla_samples)
         self._thigh_intact_roll = nicla_samples.thigh_left_roll
         self._shank_intact_gyr = nicla_samples.knee_left_gyr
         self._shank_intact_roll = nicla_samples.knee_left_roll
@@ -260,7 +250,6 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
             self._knee_encoder_prev_angle = self._knee_pr_roll
         
         # Update the reference trajectory for both motors.
-
         self._update_motors_reference()
 
     def step(self) -> None:

@@ -1,12 +1,38 @@
+from enum import Enum
 from typing import Union
 from dataclasses import dataclass
 
 from hermes.aidwear.prosthesis.utils.types import (
     HomingMethod,
-    MotorId,
     EposDevice,
     EposProtocolStack,
 )
+
+
+class RecoveryStrategy(Enum):
+    """Strategy for applying motor setpoints following an automatic fault recovery."""
+    BUMPLESS_HOLD = "bumpless_hold"  # Latch actual position upon re-enabling to prevent jerk
+    LATEST_TARGET = "latest_target"  # Immediately dispatch latest upstream setpoint
+    RAMP_TO_TARGET = "ramp_to_target"  # Smoothly interpolate between actual and target setpoint
+
+
+@dataclass
+class EposRecoveryConfig:
+    """Parameters controlling drive fault detection and autonomous recovery.
+    
+    Args:
+        max_retries: Number of recovery retries. Set to -1 (default) to retry
+            indefinitely until program termination.
+        retry_delay_s: Delay in seconds between recovery attempts.
+        strategy: Recovery strategy for restoring setpoints (BUMPLESS_HOLD, LATEST_TARGET, RAMP_TO_TARGET).
+        auto_recover: If True, automatically clears faults and recovers the drive.
+        rate_limit: Rate limit when ramping setpoints.
+    """
+    max_retries: int = -1
+    retry_delay_s: float = 0.05
+    strategy: RecoveryStrategy = RecoveryStrategy.BUMPLESS_HOLD
+    auto_recover: bool = True
+    rate_limit: float = 0.0
 
 
 @dataclass

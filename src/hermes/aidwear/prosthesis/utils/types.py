@@ -15,10 +15,11 @@ from collections import deque
 from multiprocessing import Queue, Lock, Value
 from multiprocessing.synchronize import Event as _Event, Lock as _Lock
 from multiprocessing.sharedctypes import Synchronized
-from typing import TypeAlias, TYPE_CHECKING
+from typing import TypeAlias, TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
     from hermes.aidwear.prosthesis.utils.config_manager import ConfigManager
+    from hermes.aidwear.prosthesis.motor_control.epos_facade import EposFacade
 
 from hermes.aidwear.utils.types import NiclaData, NiclaLocation
 
@@ -274,7 +275,7 @@ class PhaseEstimate:
 
 @dataclass
 class MotorCommand:
-    motor_id: str
+    motor_id: Union[str, int, MotorId]
     timestamp: float
     command_data: bytes
     control_mode: int
@@ -341,7 +342,7 @@ class NextIsPauseSynchronized:
 
 @dataclass
 class ModeContext:
-    handle: epos_handle
+    epos: "EposFacade"
     K: dict[str, ServoImpedanceGains]
     _nicla_latest_data: dict[str, deque[NiclaData]]
     _encoder_latest_data: dict[MotorId, deque[EncoderData]]
@@ -355,6 +356,10 @@ class ModeContext:
     is_stop_new_data_event: _Event
     is_keep_data_event: _Event
     config_manager: ConfigManager
+
+    @property
+    def handle(self) -> Optional[epos_handle]:
+        return self.epos.handle
 
 
 @dataclass

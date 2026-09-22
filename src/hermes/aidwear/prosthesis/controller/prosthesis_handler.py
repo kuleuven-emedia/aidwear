@@ -22,7 +22,7 @@ from hermes.utils.time_utils import get_time, init_time
 from hermes.utils.mp_utils import launch_handler
 
 from .mode_selection import ModeSelectionMachine
-from ..motor_control import epos_facade
+from ..motor_control.epos_facade import EposFacade
 from ..motor_control.types import (
     EposDeviceConfig,
     HomingConfig,
@@ -105,6 +105,7 @@ class ProsthesisHandler:
         ##### Inter-process communication related variables.
         self._input_queue = input_queue
         self._motor_data_queue = motor_data_queue
+        self._motor_command_queue = motor_command_queue
         self._calibration_event_queue = calibration_event_queue
 
         self._next_mode = next_mode_synchronized
@@ -137,7 +138,7 @@ class ProsthesisHandler:
         # Datastructures for managing the incoming Nicla data.
         self._nicla_latest_data: dict[str, deque[NiclaData]] = dict(
             map(
-                lambda field: (field.name, deque([], maxlen=2)),
+                lambda field: (field.name, deque(maxlen=1)),
                 fields(self._nicla_name_mapping),
             )
         )
@@ -174,12 +175,12 @@ class ProsthesisHandler:
         )  # validates input mapping.
 
         self._motor_latest_data: dict[MotorId, deque[ServoMotorData]] = {
-            MotorId(motor_spec["can_id"]): deque([], maxlen=2)
+            MotorId(motor_spec["can_id"]): deque(maxlen=1)
             for motor_spec in motor_mapping.values()
         }
 
         self._encoder_latest_data: dict[EncoderId, deque[EncoderData]] = {
-            EncoderId[MotorId(motor_spec["can_id"]).name]: deque([], maxlen=2)
+            EncoderId[MotorId(motor_spec["can_id"]).name]: deque(maxlen=1)
             for motor_spec in motor_mapping.values()
         }
         self._encoder_offsets: dict[EncoderId, AbsoluteEncoderOffset] = {
@@ -229,13 +230,14 @@ class ProsthesisHandler:
         }
 
         epos_handle_config = EposDeviceConfig(**motors["epos"])
-        self._epos_handle = epos_facade.init(epos_handle_config)
+        self._epos = EposFacade(command_queue=motor_command_queue)
+        self._epos_handle = self._epos.init_device(epos_handle_config)
 
         # for motor_id in MotorId:
         self._active_motors: list[MotorId] = [MotorId.ANKLE, MotorId.KNEE]
         for motor_id in self._active_motors:
-            epos_facade.connect(self._epos_handle, motor_id)
-            epos_facade.enable(self._epos_handle, motor_id)
+            self._epos.connect(motor_id)
+            self._epos.enable(motor_id)
 
         # Low-level motor controller gains.
         # TODO: use `watchdog` to live update gains parameters from a local text file for tunning motors response.
@@ -253,7 +255,7 @@ class ProsthesisHandler:
 
         # High-level locomotion mode selection FSM.
         ctx = ModeContext(
-            handle=self._epos_handle,
+            epos=self._epos,
             K=K,
             #################################################
             # NOTE: provided for "unsafe" operations.
@@ -280,8 +282,7 @@ class ProsthesisHandler:
     async def _calibrate_motors(self) -> bool:
         try:
             for motor_id in self._active_motors:
-                epos_facade.start_homing(
-                    handle=self._epos_handle,
+                self._epos.start_homing(
                     motor_id=motor_id,
                     config=self._epos_homing_spec[motor_id],
                 )
@@ -314,9 +315,7 @@ class ProsthesisHandler:
 
             for motor_id in list(pending_motors):
                 try:
-                    attained, homing_err = epos_facade.get_homing_state(
-                        self._epos_handle, motor_id
-                    )
+                    attained, homing_err = self._epos.get_homing_state(motor_id)
                     if homing_err:
                         print(
                             f"Warning: EPOS reported Homing Error flag on {motor_id.name}!",
@@ -476,22 +475,20 @@ class ProsthesisHandler:
                     await asyncio.sleep(sleep_s)
                 continue
 
-            # TODO: not super clean. Improve consistency in the future.
             async with self._nicla_offsets_lock:
                 for device_name, device_data in self._nicla_latest_data.items():
                     nicla_euler_samples[device_name] = (
-                        device_data[-1].euler[0] - self._nicla_offsets[device_name]
+                        device_data[-1].euler[0]
+                        - self._nicla_offsets[device_name]
                     )
                     nicla_gyro_samples[device_name] = device_data[-1].gyroscope[0]
 
             async with self._encoder_offsets_lock:
                 for encoder_id, encoder_data in self._encoder_latest_data.items():
-                    #encoder_samples[encoder_id] = encoder_data[-1]
-                    #encoder_samples[encoder_id].angle = (encoder_data[-1].angle - self._encoder_offsets[encoder_id].offset # + self._encoder_offsets[encoder_id].reference)  
                     sample = encoder_data[-1]
                     encoder_samples[encoder_id] = EncoderData(
                         timestamp=sample.timestamp,
-                        angle= self._encoder_offsets[encoder_id].offset - sample.angle,
+                        angle=self._encoder_offsets[encoder_id].offset - sample.angle,
                         is_error=sample.is_error,
                     )
 
@@ -511,13 +508,13 @@ class ProsthesisHandler:
             # Stop any in-progress motor movements if safety stop triggered.
             if next_is_pause and not self._is_paused:
                 for motor_id in self._active_motors:
-                    epos_facade.quick_stop(self._epos_handle, motor_id)
+                    self._epos.quick_stop(motor_id)
                 self._is_paused = True
 
             # Re-enable motors if safety is switched off.
             elif not next_is_pause and self._is_paused:
                 for motor_id in self._active_motors:
-                    epos_facade.enable(self._epos_handle, motor_id)
+                    self._epos.enable(motor_id)
                 self._is_paused = False
                 self._mode_fsm.to_idle()
 
@@ -592,9 +589,7 @@ class ProsthesisHandler:
 
             for motor_id in self._active_motors:
                 try:
-                    motor_sample = epos_facade.get_motor_data(
-                        self._epos_handle, motor_id
-                    )
+                    motor_sample = self._epos.get_motor_data(motor_id)
                     self._motor_latest_data[motor_id].append(motor_sample)
 
                     if (
@@ -618,12 +613,12 @@ class ProsthesisHandler:
     async def _cleanup(self) -> None:
         for motor_id in self._active_motors:
             try:
-                epos_facade.disable(self._epos_handle, motor_id)
+                self._epos.disable(motor_id)
             except Exception as e:
                 print(
                     f"Warning: Failed to disable motor {motor_id.name}: {e}", flush=True
                 )
-        epos_facade.shutdown(self._epos_handle, self._active_motors)
+        self._epos.shutdown(self._active_motors)
 
         self._can_notifier.stop()
 
