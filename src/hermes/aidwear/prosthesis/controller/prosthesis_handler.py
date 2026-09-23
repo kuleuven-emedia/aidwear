@@ -77,7 +77,7 @@ class ProsthesisHandler:
         motors: dict,
         fsm_config_path: str,
         output_dir: str,
-        nicla_data_queue: "Queue[tuple[str, float, NiclaData]]",
+        nicla_data_queue: "Queue[tuple[str, float, bytearray]]",
         encoder_data_queue: "Queue[tuple[EncoderId, EncoderData]]",
         motor_data_queue: "Queue[tuple[MotorId, ServoMotorData]]",
         mode_changed_queue: "Queue[ModeTransition]",

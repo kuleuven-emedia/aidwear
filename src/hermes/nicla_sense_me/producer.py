@@ -18,6 +18,7 @@ from hermes.utils.time_utils import get_time
 from hermes.utils.types import LoggingSpec
 
 from hermes.nicla_sense_me.utils.types import NiclaData, NiclaPayloadMode
+from hermes.aidwear.prosthesis.utils.types import CalibrationEvent 
 from .data_container import NiclaSenseMeDataContainer
 from .handler import NiclaSenseMeHandler
 
@@ -41,7 +42,7 @@ class NiclaSenseMeProducer(Producer):
         self._input_queue: Queue[tuple[float, str]] = _["input_queue"]
 
         self._nicla_mapping: dict[str, dict] = niclas["device_mapping"]
-        self._nicla_data_queue: Queue[tuple[str, float, NiclaData]] = Queue()
+        self._nicla_data_queue: Queue[tuple[str, float, bytearray]] = Queue()
         self._nicla_payload_mode = NiclaPayloadMode(
             is_acc=niclas["is_acc"],
             is_gyr=niclas["is_gyr"],
@@ -59,6 +60,7 @@ class NiclaSenseMeProducer(Producer):
         self._is_stop_new_data_event = Event()
         self._is_dev_cleanup_event = Event()
         self._is_finished_event = Event()
+        self._calibration_event_queue: "Queue[CalibrationEvent]" = Queue()
 
         hermes_kwargs = {
             "ref_time_s": logging_spec.ref_time_s,
@@ -68,6 +70,7 @@ class NiclaSenseMeProducer(Producer):
             "is_dev_cleanup_event": self._is_dev_cleanup_event,
             "is_finished_event": self._is_finished_event,
             "input_queue": self._input_queue,
+            "calibration_event_queue": self._calibration_event_queue,
         }
 
         self._handler_proc = Process(
@@ -125,7 +128,7 @@ class NiclaSenseMeProducer(Producer):
             while not self._nicla_data_queue.empty():
                 nicla_name, toa_s, nicla_sample = self._nicla_data_queue.get_nowait()
                 nicla_toa[nicla_name].append(toa_s)
-                nicla_data[nicla_name].append(nicla_sample)
+                nicla_data[nicla_name].append(NiclaData.from_bytes(nicla_sample))
             for nicla_name, data in nicla_data.items():
                 if data:
                     output[f"nicla_{nicla_name}"] = {
@@ -147,6 +150,9 @@ class NiclaSenseMeProducer(Producer):
 
             if output:
                 self._publish(process_time_s=process_time_s, new_data=output)
+        elif not self._calibration_event_queue.empty():
+            while not self._calibration_event_queue.empty():
+                self._calibration_event_queue.get_nowait()
         else:
             self._send_end_packet()
 

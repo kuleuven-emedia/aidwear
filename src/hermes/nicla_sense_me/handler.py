@@ -26,7 +26,6 @@ from hermes.nicla_sense_me.utils.abstract_backend import NiclaBackend
 from hermes.nicla_sense_me.utils.ble_backend import NiclaBleBackend
 from hermes.nicla_sense_me.utils.types import (
     NiclaConnectionType,
-    NiclaData,
     NiclaMappingFull,
     NiclaMappingNoPelvisAndFeet,
     NiclaOffsetsSynchronized,
@@ -39,7 +38,7 @@ class NiclaSenseMeHandler:
     def __init__(
         self,
         niclas: dict,
-        nicla_data_queue: "Queue[tuple[str, float, NiclaData]]",
+        nicla_data_queue: "Queue[tuple[str, float, bytearray]]",
         ref_time_s: float,
         is_ready_event: _Event,
         is_keep_data_event: _Event,

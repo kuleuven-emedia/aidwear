@@ -112,7 +112,7 @@ class ProsthesisPipeline(Pipeline):
         self._state_changed_queue: Queue[StateTransition] = Queue()
         self._phase_estimate_queue: Queue[PhaseEstimate] = Queue()
         self._motor_command_queue: Queue[MotorCommand] = Queue()
-        self._nicla_data_queue: Queue[tuple[str, float, NiclaData]] = Queue()
+        self._nicla_data_queue: Queue[tuple[str, float, bytearray]] = Queue()
         self._encoder_data_queue: Queue[tuple[EncoderId, EncoderData]] = Queue()
         self._motor_data_queue: Queue[tuple[MotorId, ServoMotorData]] = Queue()
         self._calibration_event_queue: Queue[CalibrationEvent] = Queue()
@@ -336,7 +336,7 @@ class ProsthesisPipeline(Pipeline):
         while not self._nicla_data_queue.empty():
             nicla_name, toa_s, nicla_sample = self._nicla_data_queue.get_nowait()
             nicla_toa[nicla_name].append(toa_s)
-            nicla_data[nicla_name].append(nicla_sample)
+            nicla_data[nicla_name].append(NiclaData.from_bytes(nicla_sample))
         for nicla_name, data in nicla_data.items():
             if data:
                 output = {
