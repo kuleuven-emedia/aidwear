@@ -49,7 +49,9 @@ class TestEposMotorFacade(unittest.TestCase):
         mock_disable.assert_called_with(self.mock_handle, self.motor_id)
 
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_enable_state")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.pm_set_position_must")
     def test_position_mode_and_setpoints(self, mock_set_pos, mock_act_pos, mock_enable):
         facade = EposMotorFacade(
@@ -70,9 +72,13 @@ class TestEposMotorFacade(unittest.TestCase):
         mock_set_pos.assert_called_with(self.mock_handle, self.motor_id, 1000)
 
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_enable_state")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_current_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_current_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.cm_set_current_must")
-    def test_current_mode_and_setpoints(self, mock_set_curr, mock_act_curr, mock_enable):
+    def test_current_mode_and_setpoints(
+        self, mock_set_curr, mock_act_curr, mock_enable
+    ):
         facade = EposMotorFacade(
             handle=self.mock_handle,
             motor_id=self.motor_id,
@@ -89,9 +95,13 @@ class TestEposMotorFacade(unittest.TestCase):
         mock_set_curr.assert_called_with(self.mock_handle, self.motor_id, 500)
 
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_enable_state")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.pm_set_position_must")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_current_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_current_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.cm_set_current_must")
     def test_automatic_mode_switching_between_position_and_current(
         self,
@@ -131,10 +141,15 @@ class TestEposMotorFacade(unittest.TestCase):
         mock_set_curr.assert_called_with(self.mock_handle, self.motor_id, 600)
 
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_enable_state")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.clear_fault")
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.is_fault")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.get_position", return_value=1200)
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.get_position",
+        return_value=1200,
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.pm_set_position_must")
     def test_automatic_fault_detection_and_recovery(
         self,
@@ -167,7 +182,10 @@ class TestEposMotorFacade(unittest.TestCase):
         mock_enable.assert_called_with(self.mock_handle, self.motor_id)
         mock_act_pos.assert_called_with(self.mock_handle, self.motor_id)
 
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.is_fault", return_value=True)
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.is_fault",
+        return_value=True,
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.clear_fault")
     def test_telemetry_polling_with_fault(self, mock_clear_fault, mock_is_fault):
         cfg = EposRecoveryConfig(auto_recover=False)
@@ -185,10 +203,18 @@ class TestEposMotorFacade(unittest.TestCase):
         self.assertEqual(facade.current_state, facade.faulted)
 
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_enable_state")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.clear_fault")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.is_fault", return_value=False)
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.get_position", return_value=500)
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.is_fault",
+        return_value=False,
+    )
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.get_position",
+        return_value=500,
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.pm_set_position_must")
     def test_setpoint_buffering_during_recovery(
         self,
@@ -232,11 +258,17 @@ class TestEposMotorFacade(unittest.TestCase):
         mock_set_pos.assert_called_with(self.mock_handle, self.motor_id, 2500)
 
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_enable_state")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.pm_set_position_must")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_current_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_current_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.cm_set_current_must")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_velocity_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_velocity_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.vm_set_velocity_must")
     def test_command_queue_recording(
         self,
@@ -320,10 +352,17 @@ class TestEposMotorFacade(unittest.TestCase):
 
 
 class TestEposFacadeCoordinator(unittest.TestCase):
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.open_device", return_value=0x9999)
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_protocol_stack_settings")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.open_device",
+        return_value=0x9999,
+    )
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.set_protocol_stack_settings"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_disable_state")
-    def test_facade_coordinator_and_multi_motor(self, mock_disable, mock_stack, mock_open):
+    def test_facade_coordinator_and_multi_motor(
+        self, mock_disable, mock_stack, mock_open
+    ):
         facade = EposFacade()
         dev_cfg = EposDeviceConfig()
         handle = facade.init_device(dev_cfg)
@@ -345,11 +384,18 @@ class TestEposFacadeCoordinator(unittest.TestCase):
         self.assertEqual(ankle.current_state, ankle.disabled)
         self.assertEqual(knee.current_state, knee.disabled)
 
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.open_device", return_value=0x9999)
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_protocol_stack_settings")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.open_device",
+        return_value=0x9999,
+    )
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.set_protocol_stack_settings"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_disable_state")
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.set_enable_state")
-    @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode")
+    @patch(
+        "hermes.aidwear.prosthesis.motor_control.epos_commands.activate_position_mode"
+    )
     @patch("hermes.aidwear.prosthesis.motor_control.epos_commands.pm_set_position_must")
     def test_facade_coordinator_command_queue_propagation(
         self, mock_pm_set, mock_pm_act, mock_enable, mock_disable, mock_stack, mock_open

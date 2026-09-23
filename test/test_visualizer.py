@@ -6,13 +6,14 @@ import os
 import yaml
 import numpy as np
 import matplotlib
+
 # Use Agg or TkAgg; Agg ensures headless test compatibility if run in background
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from hermes.utils.di_utils import search_module_class
 from hermes.utils.types import LoggingSpec
-from hermes.aidwear.utils.types import NiclaLocation
+from hermes.nicla_sense_me.utils.types import NiclaLocation
 from hermes.aidwear.prosthesis.utils.types import MotorId, EncoderId
 from hermes.aidwear.visualizer import VisualizerConsumer
 
@@ -115,7 +116,9 @@ def test_visualizer_instantiation_and_process_data():
         imu_msg = {
             "nicla_torso": {
                 "toa_s": np.array([[t]]),
-                "euler": np.array([[np.sin(t) * 10, np.cos(t) * 15, np.sin(t * 2) * 5]]),
+                "euler": np.array(
+                    [[np.sin(t) * 10, np.cos(t) * 15, np.sin(t * 2) * 5]]
+                ),
             },
             "nicla_thigh_right": {
                 "toa_s": np.array([[t]]),
@@ -176,7 +179,9 @@ def test_visualizer_instantiation_and_process_data():
 
     # Clean up
     plt.close(consumer._fig)
-    print("[OK] VisualizerConsumer process_data successfully updated all 5 IMUs, 2 motors, and 2 encoders")
+    print(
+        "[OK] VisualizerConsumer process_data successfully updated all 5 IMUs, 2 motors, and 2 encoders"
+    )
 
 
 def test_yaml_files():
@@ -188,7 +193,9 @@ def test_yaml_files():
     assert vis_cfg["consumer_specs"][0]["class"] == "VisualizerConsumer"
     print("[OK] visualizer.yml parsed successfully")
 
-    run_path = os.path.join("run", "prosthesis_standalone_cli", "prosthesis_visualizer.yml")
+    run_path = os.path.join(
+        "run", "prosthesis_standalone_cli", "prosthesis_visualizer.yml"
+    )
     with open(run_path, "r") as f:
         run_cfg = yaml.safe_load(f)
     assert "consumer_specs" in run_cfg

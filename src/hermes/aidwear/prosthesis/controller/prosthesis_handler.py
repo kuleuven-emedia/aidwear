@@ -9,9 +9,9 @@ Description: "Operating system" of the prosthesis that (1) binds together
 """
 
 import asyncio
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from multiprocessing.synchronize import Event as _Event
-from queue import Queue, Empty
+from queue import Empty
 from typing import Callable, Dict
 import can
 from collections import deque

@@ -25,6 +25,7 @@ from hermes.nicla_sense_me.utils.types import NiclaLocation
 epos_handle: TypeAlias = ctypes.c_void_p
 
 
+
 class MotorId(Enum):
     KNEE = 1
     ANKLE = 2
