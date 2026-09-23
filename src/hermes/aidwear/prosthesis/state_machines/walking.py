@@ -38,6 +38,7 @@ from ..utils.types import (
     EncoderId,
 )
 
+
 class Walking(StateMachine, ProsthesisStateMachine):
     # States.
     idle = State(
@@ -63,7 +64,9 @@ class Walking(StateMachine, ProsthesisStateMachine):
         | idle.to(one_step, cond="is_idle_to_one_step", on="idle_to_one_step")  # T1
         | one_step.to(idle, cond="is_one_step_to_idle", on="one_step_to_idle")  # T2
         | one_step.to(one_step, unless="is_one_step_to_stance or is_one_step_to_idle")
-        | one_step.to(stance, cond="is_one_step_to_stance", on="one_step_to_stance")  # T3
+        | one_step.to(
+            stance, cond="is_one_step_to_stance", on="one_step_to_stance"
+        )  # T3
         | stance.to(idle, cond="is_stance_to_idle", on="stance_to_idle")  # T2
         | stance.to(swing, cond="is_stance_to_swing", on="stance_to_swing")  # T4
         | stance.to(stance, unless="is_stance_to_swing or is_stance_to_idle")
@@ -77,11 +80,11 @@ class Walking(StateMachine, ProsthesisStateMachine):
 
     def __init__(self, ctx: ModeContext):
         self._ctx = ctx
-        self._thigh_intact_gyr = 0      # θ̇_thigh,intact
-        self._thigh_pr_gyr = 0          # θ̇_thigh,pr  (prosthetic side)
-        self._phase = 0                 # ϑ_walking
-        self._inactivity_dur = 0        # counter_inactivity
-        self._bending_dur = 0           # time_bending
+        self._thigh_intact_gyr = 0  # θ̇_thigh,intact
+        self._thigh_pr_gyr = 0  # θ̇_thigh,pr  (prosthetic side)
+        self._phase = 0  # ϑ_walking
+        self._inactivity_dur = 0  # counter_inactivity
+        self._bending_dur = 0  # time_bending
         self._first_stride = WalkingFirstStrideEnum.NONE
         self._swing_current_ma = 500
         self._knee_reference = 0
@@ -96,7 +99,7 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self._prev_vel = [0]
 
         self._K = ctx.K
-        #self._motor_latest_data = ctx.motor_latest_data
+        # self._motor_latest_data = ctx.motor_latest_data
         self._state_changed_queue = ctx.state_changed_queue
         self._phase_estimate_queue = ctx.phase_estimate_queue
         self._motor_command_queue = ctx.motor_command_queue
@@ -104,7 +107,7 @@ class Walking(StateMachine, ProsthesisStateMachine):
         # Personalized parameters.
         self._param = WalkingParameters(
             # --------------------------- Idle -> One Step (T1) ---------------------------
-            idle_to_one_step_th_gyr=-250, #-600
+            idle_to_one_step_th_gyr=-250,  # -600
             # --------------------------- One Step / Stance -> Idle (T2) ---------------------------
             to_idle_inactivity_dur=1.0,
             # --------------------------- One Step -> Stance (T3) ---------------------------
@@ -116,10 +119,10 @@ class Walking(StateMachine, ProsthesisStateMachine):
             swing_to_stance_th_gyr=100,
             swing_to_stance_phase_threshold=75,
             swing_to_stance_bending_dur=0.5,
-            inactivity_gyr_threshold=150, 
+            inactivity_gyr_threshold=150,
             inactivity_idle_transition_time=2,
             inactivity_time_step=0.01,
-            first_stride_end_gyr=-300, #-700
+            first_stride_end_gyr=-300,  # -700
             reset_phase_threshold=95,
             inactivity_angle_threshold=2,
         )
@@ -145,22 +148,22 @@ class Walking(StateMachine, ProsthesisStateMachine):
         )
 
     def idle_to_one_step(self):
-        print('idle -> one step')
+        print("idle -> one step")
 
     def one_step_to_stance(self):
-        print('one step -> stance')
+        print("one step -> stance")
 
     def one_step_to_idle(self):
-        print('one step -> idle')
+        print("one step -> idle")
 
     def stance_to_idle(self):
-        print('stance -> idle')
+        print("stance -> idle")
 
     def swing_to_stance(self):
-        print('swing -> stance')
+        print("swing -> stance")
 
     def stance_to_swing(self):
-        print('stance -> swing')
+        print("stance -> swing")
 
     # T1: Idle -> One Step
     def is_idle_to_one_step(self):
@@ -208,12 +211,16 @@ class Walking(StateMachine, ProsthesisStateMachine):
     def on_enter_swing(self):
         self._update_swing_current()
         self._ctx.epos.set_target_position(self._ctx.handle, MotorId.ANKLE, int(0))
-        self._ctx.epos.set_target_current(self._ctx.handle, MotorId.KNEE, self._knee_current)
+        self._ctx.epos.set_target_current(
+            self._ctx.handle, MotorId.KNEE, self._knee_current
+        )
 
     def _update_swing_current(self):
         """Send a fresh knee current command each control cycle while in swing."""
         knee_angle = max(abs(float(self._knee_pr_roll)), 1.0)
-        knee_current = ((8.0 * 0.5) * 1000.0) / ((5.0 / 9.0) * knee_angle + 10.0) #torque = .5
+        knee_current = ((8.0 * 0.5) * 1000.0) / (
+            (5.0 / 9.0) * knee_angle + 10.0
+        )  # torque = .5
         self._knee_current = int(
             np.clip(knee_current, -self._swing_current_ma, self._swing_current_ma)
         )
@@ -265,14 +272,14 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self._thigh_intact_roll = nicla_samples.thigh_left_roll
         self._knee_intact_roll = nicla_samples.knee_left_roll
 
-        #using the right as the prosthetic leg
+        # using the right as the prosthetic leg
         self._thigh_pr_gyr = nicla_samples.thigh_right_gyr
         self._thigh_pr_angle = nicla_samples.thigh_right_angle
         self._thigh_pr_roll = nicla_samples.thigh_right_roll
-        #self._knee_pr_roll = nicla_samples.knee_right_roll
-        #print(f"intact gyr: {self._thigh_intact_gyr:.2f}, pr gyr: {self._thigh_pr_gyr:.2f}, phase: {self._phase:.2f}")
+        # self._knee_pr_roll = nicla_samples.knee_right_roll
+        # print(f"intact gyr: {self._thigh_intact_gyr:.2f}, pr gyr: {self._thigh_pr_gyr:.2f}, phase: {self._phase:.2f}")
 
-        self._knee_pr_roll = encoder_samples[EncoderId.KNEE].angle 
+        self._knee_pr_roll = encoder_samples[EncoderId.KNEE].angle
 
         self._update_swing_current()
 

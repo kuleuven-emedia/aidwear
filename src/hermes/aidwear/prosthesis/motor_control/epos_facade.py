@@ -15,7 +15,7 @@ import ctypes
 import struct
 import time
 from multiprocessing import Queue
-from typing import Optional, Dict, Tuple, List, Union, Any
+from typing import Optional, Dict, Tuple, List, Union
 from statemachine import StateMachine, State
 
 from hermes.utils.time_utils import get_time
@@ -57,13 +57,14 @@ class EposMotorFacade(StateMachine):
     # ------------------------------------------------------------------------
     uninitialized = State(name="Uninitialized", value=0, initial=True)
     disabled = State(name="Disabled", value=1)
-    position_mode = State(name="PositionMode", value=2)
-    current_mode = State(name="CurrentMode", value=3)
-    velocity_mode = State(name="VelocityMode", value=4)
-    homing = State(name="Homing", value=5)
-    quick_stop = State(name="QuickStop", value=6)
-    faulted = State(name="Faulted", value=7)
-    recovering = State(name="Recovering", value=8)
+    enabled = State(name="Enabled", value=2)
+    position_mode = State(name="PositionMode", value=3)
+    current_mode = State(name="CurrentMode", value=4)
+    velocity_mode = State(name="VelocityMode", value=5)
+    homing = State(name="Homing", value=6)
+    quick_stop = State(name="QuickStop", value=7)
+    faulted = State(name="Faulted", value=8)
+    recovering = State(name="Recovering", value=9)
 
     allow_event_without_transition: bool = True
 
@@ -72,6 +73,8 @@ class EposMotorFacade(StateMachine):
     # ------------------------------------------------------------------------
     to_connect = disabled.from_(uninitialized)
     to_disabled = disabled.from_.any()
+    # TODO: update what states can transition into enabled
+    to_enabled = enabled.from_.any()
     to_position_mode = position_mode.from_.any()
     to_current_mode = current_mode.from_.any()
     to_velocity_mode = velocity_mode.from_.any()
@@ -154,7 +157,9 @@ class EposMotorFacade(StateMachine):
     def command_queue(self, queue: "Queue[MotorCommand]") -> None:
         self._command_queue = queue
 
-    def _record_command(self, control_mode: int, value: Union[int, float], label: str) -> None:
+    def _record_command(
+        self, control_mode: int, value: Union[int, float], label: str
+    ) -> None:
         """Records commanded target setpoint into multiprocessing queue for upstream telemetry."""
         if self._command_queue is not None:
             try:
@@ -194,7 +199,10 @@ class EposMotorFacade(StateMachine):
         try:
             cmd.set_disable_state(self._handle, self._motor_id)
         except Exception as e:
-            print(f"[{self._motor_id.name}] Warning setting disable state: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Warning setting disable state: {e}",
+                flush=True,
+            )
 
     def on_enter_position_mode(self):
         self._desired_mode = EposOperationMode.POSITION
@@ -208,7 +216,10 @@ class EposMotorFacade(StateMachine):
                 self._target_position = target
                 cmd.pm_set_position_must(self._handle, self._motor_id, target)
         except Exception as e:
-            print(f"[{self._motor_id.name}] Failed to activate Position Mode: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Failed to activate Position Mode: {e}",
+                flush=True,
+            )
             self._handle_comm_exception()
 
     def on_enter_current_mode(self):
@@ -223,7 +234,10 @@ class EposMotorFacade(StateMachine):
                 self._target_current = target
                 cmd.cm_set_current_must(self._handle, self._motor_id, target)
         except Exception as e:
-            print(f"[{self._motor_id.name}] Failed to activate Current Mode: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Failed to activate Current Mode: {e}",
+                flush=True,
+            )
             self._handle_comm_exception()
 
     def on_enter_velocity_mode(self):
@@ -238,7 +252,10 @@ class EposMotorFacade(StateMachine):
                 self._target_velocity = target
                 cmd.vm_set_velocity_must(self._handle, self._motor_id, target)
         except Exception as e:
-            print(f"[{self._motor_id.name}] Failed to activate Velocity Mode: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Failed to activate Velocity Mode: {e}",
+                flush=True,
+            )
             self._handle_comm_exception()
 
     def on_enter_homing(self):
@@ -248,14 +265,19 @@ class EposMotorFacade(StateMachine):
             cmd.set_enable_state(self._handle, self._motor_id)
             cmd.activate_homing_mode(self._handle, self._motor_id)
         except Exception as e:
-            print(f"[{self._motor_id.name}] Failed to activate Homing Mode: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Failed to activate Homing Mode: {e}",
+                flush=True,
+            )
             self._handle_comm_exception()
 
     def on_enter_quick_stop(self):
         try:
             cmd.set_quick_stop_state(self._handle, self._motor_id)
         except Exception as e:
-            print(f"[{self._motor_id.name}] Warning executing Quick Stop: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Warning executing Quick Stop: {e}", flush=True
+            )
 
     def on_enter_faulted(self):
         self._last_fault_time = get_time()
@@ -268,7 +290,10 @@ class EposMotorFacade(StateMachine):
 
         if self._recovery_config.auto_recover:
             is_infinite = self._recovery_config.max_retries <= 0
-            if is_infinite or self._recovery_attempts < self._recovery_config.max_retries:
+            if (
+                is_infinite
+                or self._recovery_attempts < self._recovery_config.max_retries
+            ):
                 # Trigger recovery sequence
                 self.start_recovery()
             else:
@@ -280,7 +305,11 @@ class EposMotorFacade(StateMachine):
 
     def on_enter_recovering(self):
         self._recovery_attempts += 1
-        retries_str = "inf" if self._recovery_config.max_retries <= 0 else str(self._recovery_config.max_retries)
+        retries_str = (
+            "inf"
+            if self._recovery_config.max_retries <= 0
+            else str(self._recovery_config.max_retries)
+        )
         print(
             f"[{self._motor_id.name}] Executing recovery attempt {self._recovery_attempts}/"
             f"{retries_str}...",
@@ -295,7 +324,10 @@ class EposMotorFacade(StateMachine):
             )
             self.recovery_succeeded()
         else:
-            print(f"[{self._motor_id.name}] Recovery FAILED on attempt {self._recovery_attempts}.", flush=True)
+            print(
+                f"[{self._motor_id.name}] Recovery FAILED on attempt {self._recovery_attempts}.",
+                flush=True,
+            )
             if self._recovery_config.retry_delay_s > 0:
                 time.sleep(self._recovery_config.retry_delay_s)
             self.recovery_failed()
@@ -310,7 +342,10 @@ class EposMotorFacade(StateMachine):
             nb_errors = cmd.epos_uint8()
             err = cmd.epos_uint32()
             status = cmd.epos.VCS_GetNbOfDeviceError(
-                self._handle, self._motor_id.value, ctypes.byref(nb_errors), ctypes.byref(err)
+                self._handle,
+                self._motor_id.value,
+                ctypes.byref(nb_errors),
+                ctypes.byref(err),
             )
             if status and nb_errors.value > 0:
                 for idx in range(1, nb_errors.value + 1):
@@ -367,7 +402,10 @@ class EposMotorFacade(StateMachine):
 
             return True
         except Exception as e:
-            print(f"[{self._motor_id.name}] Exception during recovery routine: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Exception during recovery routine: {e}",
+                flush=True,
+            )
             return False
 
     def _apply_position_recovery_strategy(self):
@@ -401,13 +439,18 @@ class EposMotorFacade(StateMachine):
         """Catches CAN / drive communication exceptions and checks for faults."""
         try:
             if cmd.is_fault(self._handle, self._motor_id):
-                if not (self.current_state == self.faulted or self.current_state == self.recovering):
+                if not (
+                    self.current_state == self.faulted
+                    or self.current_state == self.recovering
+                ):
                     self.fault_detected()
                 return
         except Exception:
             pass
 
-        if not (self.current_state == self.faulted or self.current_state == self.recovering):
+        if not (
+            self.current_state == self.faulted or self.current_state == self.recovering
+        ):
             self.fault_detected()
 
     # ------------------------------------------------------------------------
@@ -418,31 +461,13 @@ class EposMotorFacade(StateMachine):
         if self.current_state == self.uninitialized:
             self.to_connect()
 
-    def set_position_mode(self):
-        """Switches drive into closed-loop Position Mode."""
-        self._desired_mode = EposOperationMode.POSITION
-        if self.current_state != self.position_mode:
-            self.to_position_mode()
-
-    def set_current_mode(self):
-        """Switches drive into closed-loop Current / Torque Mode."""
-        self._desired_mode = EposOperationMode.CURRENT
-        if self.current_state != self.current_mode:
-            self.to_current_mode()
-
-    def set_velocity_mode(self):
-        """Switches drive into closed-loop Velocity Mode."""
-        self._desired_mode = EposOperationMode.VELOCITY
-        if self.current_state != self.velocity_mode:
-            self.to_velocity_mode()
-
-    def set_disabled(self):
-        """Disables the drive power stage."""
-        self.to_disabled()
+    def enable(self):
+        """Enables the drive power stage."""
+        self.to_enabled()
 
     def disable(self):
-        """Alias for set_disabled()."""
-        self.set_disabled()
+        """Disables the drive power stage."""
+        self.to_disabled()
 
     def quick_stop(self):
         """Commands quick stop on the drive."""
@@ -464,6 +489,24 @@ class EposMotorFacade(StateMachine):
         """Transitions from recovering back to faulted."""
         self.to_recovery_failed()
 
+    def set_position_mode(self):
+        """Switches drive into closed-loop Position Mode."""
+        self._desired_mode = EposOperationMode.POSITION
+        if self.current_state != self.position_mode:
+            self.to_position_mode()
+
+    def set_current_mode(self):
+        """Switches drive into closed-loop Current / Torque Mode."""
+        self._desired_mode = EposOperationMode.CURRENT
+        if self.current_state != self.current_mode:
+            self.to_current_mode()
+
+    def set_velocity_mode(self):
+        """Switches drive into closed-loop Velocity Mode."""
+        self._desired_mode = EposOperationMode.VELOCITY
+        if self.current_state != self.velocity_mode:
+            self.to_velocity_mode()
+
     # ------------------------------------------------------------------------
     # Public Upstream API: Setpoint Emitting
     # ------------------------------------------------------------------------
@@ -474,7 +517,7 @@ class EposMotorFacade(StateMachine):
         seamlessly without raising an error or crashing upstream control loops.
         """
         self._target_position = position
-        self._record_command(ServoCanPacketEnum.POSITION_MODE.value, position, "pos")
+        # self._record_command(ServoCanPacketEnum.POSITION_MODE.value, position, "pos")
 
         # Buffer setpoint if currently faulted or recovering
         if self.current_state in (self.faulted, self.recovering):
@@ -491,7 +534,9 @@ class EposMotorFacade(StateMachine):
             cmd.pm_set_position_must(self._handle, self._motor_id, position)
             return True
         except Exception as e:
-            print(f"[{self._motor_id.name}] Error in set_target_position: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Error in set_target_position: {e}", flush=True
+            )
             self._pending_target_position = position
             self._handle_comm_exception()
             return False
@@ -499,7 +544,7 @@ class EposMotorFacade(StateMachine):
     def set_target_current(self, current_ma: int) -> bool:
         """Commands a target current setpoint in milliamperes (mA)."""
         self._target_current = current_ma
-        self._record_command(ServoCanPacketEnum.CURRENT_LOOP_MODE.value, current_ma, "cur")
+        # self._record_command(ServoCanPacketEnum.CURRENT_LOOP_MODE.value, current_ma, "cur")
 
         if self.current_state in (self.faulted, self.recovering):
             self._pending_target_current = current_ma
@@ -514,7 +559,9 @@ class EposMotorFacade(StateMachine):
             cmd.cm_set_current_must(self._handle, self._motor_id, current_ma)
             return True
         except Exception as e:
-            print(f"[{self._motor_id.name}] Error in set_target_current: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Error in set_target_current: {e}", flush=True
+            )
             self._pending_target_current = current_ma
             self._handle_comm_exception()
             return False
@@ -522,7 +569,7 @@ class EposMotorFacade(StateMachine):
     def set_target_velocity(self, velocity_rpm: int) -> bool:
         """Commands a target velocity setpoint in rpm."""
         self._target_velocity = velocity_rpm
-        self._record_command(ServoCanPacketEnum.VELOCITY_MODE.value, velocity_rpm, "vel")
+        # self._record_command(ServoCanPacketEnum.VELOCITY_MODE.value, velocity_rpm, "vel")
 
         if self.current_state in (self.faulted, self.recovering):
             self._pending_target_velocity = velocity_rpm
@@ -537,7 +584,9 @@ class EposMotorFacade(StateMachine):
             cmd.vm_set_velocity_must(self._handle, self._motor_id, velocity_rpm)
             return True
         except Exception as e:
-            print(f"[{self._motor_id.name}] Error in set_target_velocity: {e}", flush=True)
+            print(
+                f"[{self._motor_id.name}] Error in set_target_velocity: {e}", flush=True
+            )
             self._pending_target_velocity = velocity_rpm
             self._handle_comm_exception()
             return False
@@ -556,13 +605,22 @@ class EposMotorFacade(StateMachine):
         try:
             fault = cmd.is_fault(self._handle, self._motor_id)
             if fault:
-                if not (self.current_state == self.faulted or self.current_state == self.recovering):
+                if not (
+                    self.current_state == self.faulted
+                    or self.current_state == self.recovering
+                ):
                     self.fault_detected()
                 return ServoMotorData(
                     timestamp=timestamp,
-                    position=float(self._last_telemetry.position if self._last_telemetry else 0.0),
-                    velocity=float(self._last_telemetry.velocity if self._last_telemetry else 0.0),
-                    current=float(self._last_telemetry.current if self._last_telemetry else 0.0),
+                    position=float(
+                        self._last_telemetry.position if self._last_telemetry else 0.0
+                    ),
+                    velocity=float(
+                        self._last_telemetry.velocity if self._last_telemetry else 0.0
+                    ),
+                    current=float(
+                        self._last_telemetry.current if self._last_telemetry else 0.0
+                    ),
                     error=True,
                 )
 
@@ -584,9 +642,15 @@ class EposMotorFacade(StateMachine):
             self._handle_comm_exception()
             return ServoMotorData(
                 timestamp=timestamp,
-                position=float(self._last_telemetry.position if self._last_telemetry else 0.0),
-                velocity=float(self._last_telemetry.velocity if self._last_telemetry else 0.0),
-                current=float(self._last_telemetry.current if self._last_telemetry else 0.0),
+                position=float(
+                    self._last_telemetry.position if self._last_telemetry else 0.0
+                ),
+                velocity=float(
+                    self._last_telemetry.velocity if self._last_telemetry else 0.0
+                ),
+                current=float(
+                    self._last_telemetry.current if self._last_telemetry else 0.0
+                ),
                 error=True,
             )
 
@@ -629,14 +693,33 @@ class EposFacade:
     def __init__(
         self,
         command_queue: "Queue[MotorCommand]",
-        config: Optional[EposDeviceConfig] = None,
-        recovery_config: Optional[EposRecoveryConfig] = None,
+        config: EposDeviceConfig,
+        recovery_config: EposRecoveryConfig = EposRecoveryConfig(),
     ):
+        """Opens CANopen communication channel and configures protocol stack."""
+
         self._config = config
-        self._recovery_config = recovery_config or EposRecoveryConfig()
-        self._command_queue: Queue[MotorCommand] = command_queue
-        self._handle: Optional[epos_handle] = None
+        self._recovery_config = recovery_config
+        self._command_queue = command_queue
         self._motors: Dict[MotorId, EposMotorFacade] = {}
+
+        print(
+            f"Opening communication channel to {config.device.name} devices...",
+            flush=True,
+        )
+        self._handle: epos_handle = cmd.open_device(
+            device=config.device,
+            protocol=config.protocol,
+            interface=config.interface,
+            port=config.port,
+        )
+        cmd.set_protocol_stack_settings(
+            self._handle, config.baudrate, config.timeout_ms
+        )
+        print(
+            f"EPOS CAN driver connected successfully with handle: {self._handle}",
+            flush=True,
+        )
 
     @property
     def handle(self) -> Optional[epos_handle]:
@@ -650,35 +733,12 @@ class EposFacade:
     def command_queue(self) -> "Queue[MotorCommand]":
         return self._command_queue
 
-    @command_queue.setter
-    def command_queue(self, queue: "Queue[MotorCommand]") -> None:
-        self._command_queue = queue
-        for motor in self._motors.values():
-            motor.command_queue = queue
-
     def __getitem__(self, motor_id: MotorId) -> EposMotorFacade:
         return self.get_motor(motor_id)
-
-    def init_device(self, config: EposDeviceConfig) -> epos_handle:
-        """Opens CANopen communication channel and configures protocol stack."""
-        self._config = config
-        print(f"Opening communication channel to {config.device.name} devices...", flush=True)
-        handle = cmd.open_device(
-            device=config.device,
-            protocol=config.protocol,
-            interface=config.interface,
-            port=config.port,
-        )
-        cmd.set_protocol_stack_settings(handle, config.baudrate, config.timeout_ms)
-        self._handle = handle
-        print(f"EPOS CAN driver connected successfully with handle: {handle}", flush=True)
-        return handle
 
     def get_motor(self, motor_id: MotorId) -> EposMotorFacade:
         """Retrieves or registers an EposMotorFacade for the specified motor node."""
         if motor_id not in self._motors:
-            if self._handle is None:
-                raise RuntimeError("Cannot register motor: EPOS device channel not initialized.")
             motor_facade = EposMotorFacade(
                 handle=self._handle,
                 motor_id=motor_id,
@@ -693,7 +753,10 @@ class EposFacade:
         motor = self.get_motor(motor_id)
         motor.connect()
         if cmd.is_fault(self._handle, motor_id):
-            print(f"Active fault detected on Node {motor_id.name}. Clearing fault...", flush=True)
+            print(
+                f"Active fault detected on Node {motor_id.name}. Clearing fault...",
+                flush=True,
+            )
             cmd.clear_fault(self._handle, motor_id)
             time.sleep(0.05)
 
@@ -707,7 +770,12 @@ class EposFacade:
     def enable(self, motor_id: MotorId):
         """Enables the power stage of the specified motor."""
         motor = self.get_motor(motor_id)
-        motor.set_position_mode()
+        motor.enable()
+
+    def disable(self, motor_id: MotorId):
+        """Disables the power stage of the specified motor."""
+        motor = self.get_motor(motor_id)
+        motor.disable()
 
     def set_position_mode(self, motor_id: MotorId):
         """Switches the specified motor into Position Mode."""
@@ -720,11 +788,6 @@ class EposFacade:
     def set_velocity_mode(self, motor_id: MotorId):
         """Switches the specified motor into Velocity Mode."""
         self.get_motor(motor_id).set_velocity_mode()
-
-    def disable(self, motor_id: MotorId):
-        """Disables the power stage of the specified motor."""
-        motor = self.get_motor(motor_id)
-        motor.set_disabled()
 
     def quick_stop(self, motor_id: MotorId):
         """Commands a quick stop deceleration on the specified motor."""
@@ -766,12 +829,12 @@ class EposFacade:
     def enable_all(self):
         """Enables all registered motors."""
         for motor in self._motors.values():
-            motor.set_position_mode()
+            motor.enable()
 
     def disable_all(self):
         """Disables all registered motors."""
         for motor in self._motors.values():
-            motor.set_disabled()
+            motor.disable()
 
     def quick_stop_all(self):
         """Triggers quick stop on all registered motors."""
@@ -781,17 +844,13 @@ class EposFacade:
     def shutdown(self, motor_ids: Optional[List[MotorId]] = None):
         """Disables motor power stages and closes the CAN device channel."""
         print("Disabling motor power stage and closing communication...", flush=True)
-        targets = [self.get_motor(m) for m in motor_ids] if motor_ids else list(self._motors.values())
+        targets = (
+            [self.get_motor(m) for m in motor_ids]
+            if motor_ids
+            else list(self._motors.values())
+        )
         for motor in targets:
-            try:
-                motor.set_disabled()
-            except Exception as e:
-                print(f"Warning: Failed to disable {motor.motor_id.name}: {e}", flush=True)
+            motor.disable()
 
-        if self._handle:
-            try:
-                cmd.close_device(self._handle)
-                print("EPOS device closed safely.", flush=True)
-            except Exception as e:
-                print(f"Warning: Failed to close device: {e}", flush=True)
-            self._handle = None
+        cmd.close_device(self._handle)
+        print("EPOS device closed safely.", flush=True)

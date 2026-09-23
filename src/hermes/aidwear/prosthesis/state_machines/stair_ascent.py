@@ -36,6 +36,7 @@ from ..utils.types import (
     ModeEnum,
 )
 
+
 class StairAscent(StateMachine, ProsthesisStateMachine):
     # States.
     stance = State(
@@ -55,7 +56,9 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
     # Transitions.
     cycle = (  ### YOU SHOUD ADD THE "SAFETY" MEasure
         stance.to(stance, unless="is_stance_to_push_off")
-        | stance.to(push_off, cond="is_stance_to_push_off", on="stance_to_push_off")  # T1
+        | stance.to(
+            push_off, cond="is_stance_to_push_off", on="stance_to_push_off"
+        )  # T1
         | push_off.to(push_off, unless="is_push_off_to_swing")
         | push_off.to(swing, cond="is_push_off_to_swing", on="push_off_to_swing")  # T2
         | swing.to(swing, unless="is_swing_to_step_up")
@@ -65,16 +68,16 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
     )
 
     def __init__(self, ctx: ModeContext):
-        self._thigh_intact_gyr = 0      # θ̇_thigh,intact
-        self._thigh_intact_roll = 0     # θ_thigh,intact
-        self._thigh_pr_gyr = 0          # θ̇_thigh,pr
-        self._thigh_pr_roll = 0         # θ_thigh,pr
-        self._inactivity_dur = 0        # counter_inactivity
-        self._knee_pr_roll = 0          # θ_knee,pr
-        
-        self._angle_knee_reference = 0        # θ_knee,pr reference   
-        self._angle_ankle_reference = 0       # θ_ankle,pr reference
-        
+        self._thigh_intact_gyr = 0  # θ̇_thigh,intact
+        self._thigh_intact_roll = 0  # θ_thigh,intact
+        self._thigh_pr_gyr = 0  # θ̇_thigh,pr
+        self._thigh_pr_roll = 0  # θ_thigh,pr
+        self._inactivity_dur = 0  # counter_inactivity
+        self._knee_pr_roll = 0  # θ_knee,pr
+
+        self._angle_knee_reference = 0  # θ_knee,pr reference
+        self._angle_ankle_reference = 0  # θ_ankle,pr reference
+
         self._step_up_dur = 0
         self._knee_encoder_prev_angle = None
         self._knee_velocity = 0.0
@@ -96,25 +99,25 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         # Personalized parameters.
         self._param = StairAscentParameters(
             # --------------------------- Stance -> Push-off (T1) --------------------------
-            stance_to_push_off_th_gyr=500, #1000,         # θ̇_thigh,intact < 60 deg/s
-            stance_to_push_off_th_roll=50,          # θ_thigh,intact > 50 deg
+            stance_to_push_off_th_gyr=500,  # 1000,         # θ̇_thigh,intact < 60 deg/s
+            stance_to_push_off_th_roll=50,  # θ_thigh,intact > 50 deg
             # --------------------------- Push-off -> Swing (T2) ---------------------------
-            push_off_to_swing_th_gyr=0,             # θ̇_thigh,intact > 0 deg/s
-            push_off_to_swing_th_roll=30,           # θ_thigh,intact > -30 deg
-            push_off_to_swing_pr_roll=-10,           # θ_thigh,pr < 5 deg
+            push_off_to_swing_th_gyr=0,  # θ̇_thigh,intact > 0 deg/s
+            push_off_to_swing_th_roll=30,  # θ_thigh,intact > -30 deg
+            push_off_to_swing_pr_roll=-10,  # θ_thigh,pr < 5 deg
             # --------------------------- Swing -> Step-up (T3) ----------------------------
-            swing_to_step_up_th_gyr=150,            # θ̇_thigh,pr > -12 deg/s
-            swing_to_step_up_th_roll=20,            # θ_thigh,pr < -20 deg
-            swing_to_step_up_inactivity_dur=0.8,    # counter_inactivity > 0.5 s
+            swing_to_step_up_th_gyr=150,  # θ̇_thigh,pr > -12 deg/s
+            swing_to_step_up_th_roll=20,  # θ_thigh,pr < -20 deg
+            swing_to_step_up_inactivity_dur=0.8,  # counter_inactivity > 0.5 s
             # --------------------------- Step-up -> Stance (T4) ---------------------------
-            step_up_to_stance_th_gyr_range=100,     # θ̇_thigh,pr >< 6 deg/s
-            step_up_to_stance_th_roll=10,           # θ_thigh,pr < 10 deg
+            step_up_to_stance_th_gyr_range=100,  # θ̇_thigh,pr >< 6 deg/s
+            step_up_to_stance_th_roll=10,  # θ_thigh,pr < 10 deg
             # ------------------------------------------------------------------------------
-            risetime=0.5,                           # risetime for torque reference
+            risetime=0.5,  # risetime for torque reference
         )
 
-        #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        #activate_position_mode(self._ctx.handle, MotorId.KNEE)
+        # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
+        # activate_position_mode(self._ctx.handle, MotorId.KNEE)
 
         super(StairAscent, self).__init__()
 
@@ -126,27 +129,27 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         )
 
     def stance_to_push_off(self):
-        #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        #activate_position_mode(self._ctx.handle, MotorId.KNEE)
-        print('push')
+        # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
+        # activate_position_mode(self._ctx.handle, MotorId.KNEE)
+        print("push")
 
     def push_off_to_swing(self):
-        #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        #activate_current_mode(self._ctx.handle, MotorId.KNEE)
+        # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
+        # activate_current_mode(self._ctx.handle, MotorId.KNEE)
         self._thigh_swing_start = self._thigh_pr_roll
         self._knee_swing_start = self._knee_pr_roll
         self._angle_knee_reference = self._knee_swing_start
-        print('swing')
+        print("swing")
 
     def swing_to_step_up(self):
-        #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        #activate_current_mode(self._ctx.handle, MotorId.KNEE)
-        print('step')
-    
+        # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
+        # activate_current_mode(self._ctx.handle, MotorId.KNEE)
+        print("step")
+
     def step_up_to_stance(self):
-        #activate_position_mode(self._ctx.handle, MotorId.ANKLE)
-        #activate_position_mode(self._ctx.handle, MotorId.KNEE)
-        print('stance')
+        # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
+        # activate_position_mode(self._ctx.handle, MotorId.KNEE)
+        print("stance")
 
     # T1: Stance -> Push-off
     def is_stance_to_push_off(self):
@@ -180,8 +183,8 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
 
     # Actions.
     def on_enter_stance(self):
-        #pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
-        #pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
+        # pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
+        # pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
         self._step_up_dur = 0
         self._inactivity_dur = 0
 
@@ -207,7 +210,9 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
 
     def _update_motors_reference(self):
         """Make the knee reference follow changes in the thigh angle."""
-        if not hasattr(self, "_thigh_swing_start") or not hasattr(self, "_knee_swing_start"):
+        if not hasattr(self, "_thigh_swing_start") or not hasattr(
+            self, "_knee_swing_start"
+        ):
             return
         thigh_change = self._thigh_pr_roll - self._thigh_swing_start
         self._knee_reference = (
@@ -238,17 +243,19 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         self._torso_roll = nicla_samples.torso_angle
         self._thigh_pr_roll = nicla_samples.thigh_right_roll
 
-        self._knee_pr_roll = encoder_samples[EncoderId.KNEE].angle 
-        #self._knee_pr_roll_timestamp = encoder_samples[EncoderId.KNEE].timestamp
+        self._knee_pr_roll = encoder_samples[EncoderId.KNEE].angle
+        # self._knee_pr_roll_timestamp = encoder_samples[EncoderId.KNEE].timestamp
 
         if self._knee_pr_roll is not None:
             if self._knee_encoder_prev_angle is not None:
-                self._knee_velocity = (self._knee_pr_roll - self._knee_encoder_prev_angle) / dt
+                self._knee_velocity = (
+                    self._knee_pr_roll - self._knee_encoder_prev_angle
+                ) / dt
             else:
                 self._knee_velocity = 0.0
-            #self._knee_encoder_prev_time = self._knee_pr_roll_timestamp
+            # self._knee_encoder_prev_time = self._knee_pr_roll_timestamp
             self._knee_encoder_prev_angle = self._knee_pr_roll
-        
+
         # Update the reference trajectory for both motors.
         self._update_motors_reference()
 

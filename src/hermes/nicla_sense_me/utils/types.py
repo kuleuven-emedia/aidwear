@@ -6,12 +6,20 @@ Version: 1.0
 Description: Nicla Sense ME specific data types.
 """
 
+from typing import List
+from typing import Dict
+from multiprocessing import Value
+from multiprocessing.sharedctypes import Synchronized
+from dataclasses import field
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 import struct
 from typing import Optional, Union, Any
 import numpy as np
+from multiprocessing import Lock
+from multiprocessing.shared_memory import SharedMemory
+from multiprocessing.synchronize import Lock as _Lock
 
 
 class NiclaLocation(Enum):
@@ -85,11 +93,41 @@ class NiclaPacketMask(Enum):
     HUM = MaskParsingTuple(mask=0x80, format="f", key="humidity", num_bytes=4)
 
 
+NICLA_HEADER_FORMAT: str = "<BII"
+NICLA_HEADER_SIZE: int = struct.calcsize(
+    NICLA_HEADER_FORMAT
+)  # 9 bytes: mask (1B), timestamp (4B), sequence_id (4B)
+
+NICLA_CONFIG_TO_PACKET_MASK: dict[str, NiclaPacketMask] = {
+    "is_acc": NiclaPacketMask.ACC,
+    "is_gyr": NiclaPacketMask.GYR,
+    "is_mag": NiclaPacketMask.MAG,
+    "is_euler": NiclaPacketMask.EULER,
+    "is_quat": NiclaPacketMask.QUAT,
+    "is_temp": NiclaPacketMask.TEMP,
+    "is_baro": NiclaPacketMask.BARO,
+    "is_hum": NiclaPacketMask.HUM,
+}
+
+
+def calculate_nicla_sample_size(nicla_config: dict[str, Any]) -> int:
+    """Calculates the expected total raw packet size in bytes for a Nicla sensor.
+
+    Fixed 9-byte header (modality mask, timestamp, sequence_id) plus the payload size
+    of each enabled modality defined in the nicla config specification.
+    """
+    return NICLA_HEADER_SIZE + sum(
+        mask.value.num_bytes
+        for key, mask in NICLA_CONFIG_TO_PACKET_MASK.items()
+        if nicla_config.get(key, False)
+    )
+
+
 _PARSER_CACHE: dict[int, Callable[[Any], "NiclaData"]] = {}
 
 
 def _create_packet_parser(mask: int) -> Callable[[Any], "NiclaData"]:
-    fmt = "<BII"
+    fmt = NICLA_HEADER_FORMAT
     field_specs: list[tuple[str, int]] = []
     for modality in NiclaPacketMask:
         if mask & modality.value.mask:
@@ -166,6 +204,83 @@ class NiclaData:
             parser = _create_packet_parser(mask)
             _PARSER_CACHE[mask] = parser
         return parser(data)
+
+
+@dataclass(frozen=True)
+class NiclaSampleSynchronizedMetadata:
+    size: int
+    name: str
+    lock: _Lock
+
+
+class NiclaSampleSynchronized:
+    def __init__(
+        self,
+        size: int,
+        name: Optional[str] = None,
+        lock: Optional[_Lock] = None,
+    ):
+        if name is not None:
+            assert lock is not None
+            self._lock = lock
+            self._shm = SharedMemory(name=name, size=size)
+        else:
+            self._lock = Lock()
+            self._shm = SharedMemory(create=True, size=size)
+            self._shm.buf[:] = bytes(size)
+
+    @classmethod
+    def from_metadata(
+        cls, metadata: NiclaSampleSynchronizedMetadata
+    ) -> "NiclaSampleSynchronized":
+        return cls(
+            size=metadata.size,
+            name=metadata.name,
+            lock=metadata.lock,
+        )
+
+    def get_metadata(self) -> NiclaSampleSynchronizedMetadata:
+        return NiclaSampleSynchronizedMetadata(
+            size=self._shm.size,
+            name=self._shm.name,
+            lock=self._lock,
+        )
+
+    @property
+    def data(self) -> NiclaData:
+        with self._lock:
+            return NiclaData.from_bytes(data=self._shm.buf)
+
+    @data.setter
+    def data(self, raw_data: bytearray) -> None:
+        with self._lock:
+            self._shm.buf[:] = raw_data
+
+    def close(self) -> None:
+        self._shm.close()
+
+    def unlink(self) -> None:
+        self._shm.unlink()
+
+
+@dataclass
+class NiclaOffsetsSynchronized:
+    _device_names: List[str]
+    lock: _Lock = field(init=False)
+    offsets: "Dict[str, Synchronized[float]]" = field(init=False)
+
+    def __post_init__(self):
+        self.lock = Lock()
+        self.offsets = dict(
+            map(
+                lambda dev_name: (dev_name, Value("f", np.nan, lock=False)),
+                self._device_names,
+            )
+        )
+
+    def is_calibrated(self) -> bool:
+        with self.lock:
+            return not any(np.isnan(v.value) for v in self.offsets.values())
 
 
 @dataclass

@@ -43,7 +43,7 @@ from .utils.types import (
     MotorId,
     EncoderId,
 )
-from ..utils.types import (
+from hermes.nicla_sense_me.utils.types import (
     NiclaData,
     NiclaLocation,
     NiclaPayloadMode,
@@ -210,19 +210,35 @@ class ProsthesisPipeline(Pipeline):
                 # NOTE: AI component will provide `int` matching one of the ModeEnum values.
                 with self._next_mode.lock:
                     self._next_mode.next_value.value = msg["intent"]["mode"].item()
-                    self._next_mode.sequence_id.value = msg["intent"]["sequence_id"].item()
-                    self._next_mode.source.value = IntentCommandSource.CLI.value if topic == "cli_control" else IntentCommandSource.GUI.value
+                    self._next_mode.sequence_id.value = msg["intent"][
+                        "sequence_id"
+                    ].item()
+                    self._next_mode.source.value = (
+                        IntentCommandSource.CLI.value
+                        if topic == "cli_control"
+                        else IntentCommandSource.GUI.value
+                    )
             elif "fatigue" in msg:
                 # Passes to the top-level exo module the next fatigue percentage to choose internally to scale torques.
                 # NOTE: AI component will provide `float` in range [0, 100].
                 with self._next_fatigue.lock:
                     self._next_fatigue.next_value.value = msg["fatigue"]["level"].item()
-                    self._next_fatigue.sequence_id.value = msg["fatigue"]["sequence_id"].item()
-                    self._next_fatigue.source.value = FatigueCommandSource.CLI.value if topic == "cli_control" else FatigueCommandSource.GUI.value
+                    self._next_fatigue.sequence_id.value = msg["fatigue"][
+                        "sequence_id"
+                    ].item()
+                    self._next_fatigue.source.value = (
+                        FatigueCommandSource.CLI.value
+                        if topic == "cli_control"
+                        else FatigueCommandSource.GUI.value
+                    )
             elif "safety_stop" in msg:
                 with self._next_is_pause.lock:
-                    self._next_is_pause.next_value.value = msg["safety_stop"]["is_pause"].item()
-                    self._next_is_pause.sequence_id.value = msg["safety_stop"]["sequence_id"].item()
+                    self._next_is_pause.next_value.value = msg["safety_stop"][
+                        "is_pause"
+                    ].item()
+                    self._next_is_pause.sequence_id.value = msg["safety_stop"][
+                        "sequence_id"
+                    ].item()
         elif topic == "ai_intent":
             # TODO: factor confidence into the majority voting.
             # Currently considers only the 0.0s forecasting horizon.
@@ -231,13 +247,19 @@ class ProsthesisPipeline(Pipeline):
             if all(map(lambda x: x == prediction, self._intent_majority_vote_buf)):
                 # Convert AI high-level activity to the mid-level exo state machine used for the activity.
                 with self._next_mode.lock:
-                    self._next_mode.next_value.value = CLASS_TO_MODE[prediction].value.id
-                    self._next_mode.sequence_id.value = msg["intent"]["sequence_id"].item()
+                    self._next_mode.next_value.value = CLASS_TO_MODE[
+                        prediction
+                    ].value.id
+                    self._next_mode.sequence_id.value = msg["intent"][
+                        "sequence_id"
+                    ].item()
                     self._next_mode.source.value = IntentCommandSource.AI.value
         elif topic == "ai_fatigue":
             with self._next_fatigue.lock:
                 self._next_fatigue.next_value.value = msg["fatigue"]["rpe"][0].item()
-                self._next_fatigue.sequence_id.value = msg["fatigue"]["sequence_id"].item()
+                self._next_fatigue.sequence_id.value = msg["fatigue"][
+                    "sequence_id"
+                ].item()
                 self._next_fatigue.source.value = FatigueCommandSource.AI.value
 
     def _generate_data(self) -> None:
@@ -254,16 +276,20 @@ class ProsthesisPipeline(Pipeline):
                 output = {
                     f"motor_{motor_name}": {
                         "toa_s": np.array(
-                            [list(map(lambda m: m.timestamp, motor_data))], dtype=np.float64
+                            [list(map(lambda m: m.timestamp, motor_data))],
+                            dtype=np.float64,
                         ).transpose((1, 0)),
                         "position": np.array(
-                            [list(map(lambda m: m.position, motor_data))], dtype=np.float32
+                            [list(map(lambda m: m.position, motor_data))],
+                            dtype=np.float32,
                         ).transpose((1, 0)),
                         "velocity": np.array(
-                            [list(map(lambda m: m.velocity, motor_data))], dtype=np.float32
+                            [list(map(lambda m: m.velocity, motor_data))],
+                            dtype=np.float32,
                         ).transpose((1, 0)),
                         "current": np.array(
-                            [list(map(lambda m: m.current, motor_data))], dtype=np.float32
+                            [list(map(lambda m: m.current, motor_data))],
+                            dtype=np.float32,
                         ).transpose((1, 0)),
                         "error": np.array(
                             [list(map(lambda m: m.error, motor_data))], dtype=np.uint8
@@ -410,7 +436,8 @@ class ProsthesisPipeline(Pipeline):
                         dtype=np.float64,
                     ).transpose((1, 0)),
                     "state": np.array(
-                        [list(map(lambda s: s.state, state_transitions))], dtype=np.uint8
+                        [list(map(lambda s: s.state, state_transitions))],
+                        dtype=np.uint8,
                     ).transpose((1, 0)),
                 }
             }
@@ -428,7 +455,8 @@ class ProsthesisPipeline(Pipeline):
                         dtype=np.float64,
                     ).transpose((1, 0)),
                     "phase": np.array(
-                        [list(map(lambda p: p.phase, phase_estimates))], dtype=np.float32
+                        [list(map(lambda p: p.phase, phase_estimates))],
+                        dtype=np.float32,
                     ).transpose((1, 0)),
                 }
             }
@@ -451,16 +479,31 @@ class ProsthesisPipeline(Pipeline):
             }
             while not self._calibration_event_queue.empty():
                 calibration_event = self._calibration_event_queue.get_nowait()
-                calibration_data[calibration_event.sensor_type].append(calibration_event)
+                calibration_data[calibration_event.sensor_type].append(
+                    calibration_event
+                )
             if calibration_data[CalibrationEventType.NICLA]:
                 output = {
                     "nicla_calibration": {
                         "toa_s": np.array(
-                            [list(map(lambda c: c.timestamp, calibration_data[CalibrationEventType.NICLA]))],
+                            [
+                                list(
+                                    map(
+                                        lambda c: c.timestamp,
+                                        calibration_data[CalibrationEventType.NICLA],
+                                    )
+                                )
+                            ],
                             dtype=np.float64,
                         ).transpose((1, 0)),
                         "offsets": np.array(
-                            list(map(lambda c: list(c.offsets.values()), calibration_data[CalibrationEventType.NICLA])), dtype=np.float32
+                            list(
+                                map(
+                                    lambda c: list(c.offsets.values()),
+                                    calibration_data[CalibrationEventType.NICLA],
+                                )
+                            ),
+                            dtype=np.float32,
                         ).transpose((1, 0)),
                     }
                 }
@@ -469,11 +512,24 @@ class ProsthesisPipeline(Pipeline):
                 output = {
                     "encoder_calibration": {
                         "toa_s": np.array(
-                            [list(map(lambda c: c.timestamp, calibration_data[CalibrationEventType.ENCODER]))],
+                            [
+                                list(
+                                    map(
+                                        lambda c: c.timestamp,
+                                        calibration_data[CalibrationEventType.ENCODER],
+                                    )
+                                )
+                            ],
                             dtype=np.float64,
                         ).transpose((1, 0)),
                         "offsets": np.array(
-                            list(map(lambda c: list(c.offsets.values()), calibration_data[CalibrationEventType.ENCODER])), dtype=np.float32
+                            list(
+                                map(
+                                    lambda c: list(c.offsets.values()),
+                                    calibration_data[CalibrationEventType.ENCODER],
+                                )
+                            ),
+                            dtype=np.float32,
                         ).transpose((1, 0)),
                     }
                 }

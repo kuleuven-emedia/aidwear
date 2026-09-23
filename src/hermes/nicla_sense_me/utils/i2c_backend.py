@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/exo/sensors/nicla/i2c_backend.py
+Filename: hermes/nicla_sense_me/utils/i2c_backend.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-01-02
 Version: 1.0
@@ -19,8 +19,13 @@ import time
 
 from hermes.utils.time_utils import get_time
 
-from .abstract_backend import NiclaBackend
-from hermes.aidwear.utils.types import NiclaData, NiclaI2cCommand, NiclaPacketMask
+from hermes.nicla_sense_me.utils.abstract_backend import NiclaBackend
+from hermes.nicla_sense_me.utils.types import (
+    NiclaData,
+    NiclaI2cCommand,
+    NiclaPacketMask,
+    NICLA_HEADER_SIZE,
+)
 
 
 class NiclaI2cBackend(NiclaBackend):
@@ -44,7 +49,9 @@ class NiclaI2cBackend(NiclaBackend):
         self._is_cleanup_event = is_cleanup_event
         self._i2c: busio.I2C
         # Provide the overoptimistic buffer to accomodate the largest expected variable-size Nicla packet.
-        self._recv_buffer_size = sum([v.value.num_bytes for v in NiclaPacketMask]) + 9
+        self._recv_buffer_size = (
+            sum([v.value.num_bytes for v in NiclaPacketMask]) + NICLA_HEADER_SIZE
+        )
 
     def _writeto(self, address: int, data: int):
         if isinstance(data, int):

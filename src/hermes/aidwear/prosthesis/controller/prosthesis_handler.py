@@ -12,9 +12,8 @@ import asyncio
 from multiprocessing import Process
 from multiprocessing.synchronize import Event as _Event
 from queue import Queue, Empty
-from typing import Callable
+from typing import Callable, Dict
 import can
-import numpy as np
 from collections import deque
 from dataclasses import fields
 
@@ -29,9 +28,7 @@ from ..motor_control.types import (
 )
 from ..utils.config_manager import ConfigManager
 from ..sensors.can_backend import CanBackend
-from ..sensors.nicla.abstract_backend import NiclaBackend
-from ..sensors.nicla.ble_backend import NiclaBleBackend
-from ..sensors.nicla.i2c_backend import NiclaI2cBackend
+
 from ..utils.utils import (
     config_can_linux,
     finalize_running_stats,
@@ -60,11 +57,16 @@ from ..utils.types import (
     AbsoluteEncoderOffset,
     NiclaSamples,
 )
-from ...utils.types import (
+from hermes.nicla_sense_me.utils.abstract_backend import NiclaBackend
+from hermes.nicla_sense_me.utils.ble_backend import NiclaBleBackend
+from hermes.nicla_sense_me.utils.types import (
+    NiclaSampleSynchronized,
+    NiclaOffsetsSynchronized,
     NiclaMappingFull,
     NiclaMappingNoPelvisAndFeet,
     NiclaConnectionType,
     NiclaData,
+    calculate_nicla_sample_size,
 )
 
 
@@ -99,14 +101,16 @@ class ProsthesisHandler:
     ):
         self._ref_time_s = ref_time_s
         self._dt = dt
-
         self._motor_dt = 1.0 / motors["sampling_rate_hz"]
 
-        ##### Inter-process communication related variables.
+        # ------------------------------------------------------------------------
+        # Inter-process communication related variables
+        # ------------------------------------------------------------------------
         self._input_queue = input_queue
         self._motor_data_queue = motor_data_queue
         self._motor_command_queue = motor_command_queue
         self._calibration_event_queue = calibration_event_queue
+        self._nicla_backend_proc_input_queue: "Queue[tuple[float, str]]" = Queue()
 
         self._next_mode = next_mode_synchronized
         self._next_fatigue = next_fatigue_synchronized
@@ -118,14 +122,17 @@ class ProsthesisHandler:
         self._is_exo_cleanup_event = is_exo_cleanup_event
         self._is_finished_event = is_finished_event
 
-        self._factor_prev = {k: 0.0 for k in MotorId}
-        self._token = 0
-
-        ##### Nicla Sense ME related variables.
+        # ------------------------------------------------------------------------
+        # Nicla Sense ME related variables
+        # ------------------------------------------------------------------------
         nicla_connection_type = NiclaConnectionType[niclas["connection_type"]]
+        self._gravity_scaling_factor = (
+            niclas["gravity_scaling_factor"] * 9.80665 / 32768.0
+        )
+        self._gyroscope_scaling_factor = niclas["gyroscope_scaling_factor"] / 32768.0
 
         # Filter out AI-only Niclas if running exo without the AI and validate input mapping.
-        nicla_mapping: dict[str, dict] = niclas["device_mapping"]
+        nicla_mapping: Dict[str, dict] = niclas["device_mapping"]
         if niclas["is_pelvis_and_feet"]:
             self._nicla_name_mapping = NiclaMappingFull(
                 **dict(zip(nicla_mapping.keys(), nicla_mapping.keys()))
@@ -135,55 +142,65 @@ class ProsthesisHandler:
                 **dict(zip(nicla_mapping.keys(), nicla_mapping.keys()))
             )
 
+        # Extract expected raw data size from Nicla config YAML spec (9-byte header + active modalities)
+        nicla_sample_size: int = calculate_nicla_sample_size(niclas)
+
         # Datastructures for managing the incoming Nicla data.
-        self._nicla_latest_data: dict[str, deque[NiclaData]] = dict(
-            map(
-                lambda field: (field.name, deque(maxlen=1)),
-                fields(self._nicla_name_mapping),
-            )
+        self._nicla_latest_data: Dict[str, NiclaSampleSynchronized] = {
+            field.name: NiclaSampleSynchronized(nicla_sample_size)
+            for field in fields(self._nicla_name_mapping)
+        }
+        self._nicla_offsets = NiclaOffsetsSynchronized(
+            [field.name for field in fields(self._nicla_name_mapping)]
         )
-        self._nicla_offsets: dict[str, float] = dict(
-            map(lambda field: (field.name, 0.0), fields(self._nicla_name_mapping))
-        )
-        self._nicla_offsets_lock = asyncio.Lock()
 
-        self._nicla_backend: NiclaBackend
+        nicla_backend: type[NiclaBackend]
         if nicla_connection_type == NiclaConnectionType.BLE:
-            self._nicla_backend = NiclaBleBackend(
-                niclas=niclas,
-                nicla_latest_data=self._nicla_latest_data,
-                nicla_data_queue=nicla_data_queue,
-                is_keep_data_event=is_keep_data_event,
-                is_stop_new_data_event=is_stop_new_data_event,
-                is_cleanup_event=is_exo_cleanup_event,
+            nicla_backend = NiclaBleBackend
+        else:
+            raise NotImplementedError(
+                f"{nicla_connection_type} is not implemented in prosthesis handler"
             )
-        elif nicla_connection_type == NiclaConnectionType.I2C:
-            self._nicla_backend = NiclaI2cBackend()
 
-        self._gravity_scaling_factor = (
-            niclas["gravity_scaling_factor"] * 9.80665 / 32768.0
+        self._nicla_backend_proc = Process(
+            target=launch_handler,
+            args=(nicla_backend,),
+            kwargs={
+                "niclas": niclas,
+                "nicla_latest_data": {
+                    name: data.get_metadata()
+                    for name, data in self._nicla_latest_data.items()
+                },
+                "nicla_data_queue": nicla_data_queue,
+                "nicla_offsets": self._nicla_offsets,
+                "calibration_event_queue": calibration_event_queue,
+                "is_keep_data_event": is_keep_data_event,
+                "is_stop_new_data_event": is_stop_new_data_event,
+                "is_cleanup_event": is_exo_cleanup_event,
+                "ref_time_s": self._ref_time_s,
+                "input_queue": self._nicla_backend_proc_input_queue,
+            },
         )
-        self._gyroscope_scaling_factor = (
-            niclas["gyroscope_scaling_factor"] / 32768.0
-        )
+        self._nicla_backend_proc.start()
 
-        ##### Motor related variables.
-        motor_mapping: dict[str, dict] = motors["device_mapping"]
-        # self._is_emulate_can = "is_emulate_can" in motors and motors["is_emulate_can"]
+        # ------------------------------------------------------------------------
+        # Motor related variables
+        # ------------------------------------------------------------------------
+        motor_mapping: Dict[str, dict] = motors["device_mapping"]
         self._motor_name_mapping = ProsthesisMotorMapping(
             **dict(zip(motor_mapping.keys(), motor_mapping.keys()))
         )  # validates input mapping.
 
-        self._motor_latest_data: dict[MotorId, deque[ServoMotorData]] = {
+        self._motor_latest_data: Dict[MotorId, deque[ServoMotorData]] = {
             MotorId(motor_spec["can_id"]): deque(maxlen=1)
             for motor_spec in motor_mapping.values()
         }
 
-        self._encoder_latest_data: dict[EncoderId, deque[EncoderData]] = {
+        self._encoder_latest_data: Dict[EncoderId, deque[EncoderData]] = {
             EncoderId[MotorId(motor_spec["can_id"]).name]: deque(maxlen=1)
             for motor_spec in motor_mapping.values()
         }
-        self._encoder_offsets: dict[EncoderId, AbsoluteEncoderOffset] = {
+        self._encoder_offsets: Dict[EncoderId, AbsoluteEncoderOffset] = {
             EncoderId[MotorId(motor_spec["can_id"]).name]: AbsoluteEncoderOffset(
                 motor_spec["absolute_encoder_reference"], 0.0
             )
@@ -191,23 +208,6 @@ class ProsthesisHandler:
         }
         self._encoder_offsets_lock = asyncio.Lock()
 
-        # Main CAN bus for absolute encoder reading.
-        # if self._is_emulate_can:
-        #     self._can_bus = can.interface.Bus(
-        #         channel="localhost:18881", interface="virtualcan"
-        #     )
-        #     # Launch process that generates dummy motor data for all 2 encoders.
-        #     self._can_emulator_proc = Process(
-        #         target=launch_handler,
-        #         args=(CanEmulator,),
-        #         kwargs={
-        #             "motor_mapping": motor_mapping,
-        #             "is_stop_new_data_event": is_stop_new_data_event,
-        #             "sampling_rate_hz": motors["sampling_rate_hz"],
-        #         },
-        #     )
-        #     self._can_emulator_proc.start()
-        # else:
         config_can_linux(channel="can0")
         self._can_bus = can.interface.Bus(
             channel="can0", interface="socketcan", fd=True
@@ -229,11 +229,13 @@ class ProsthesisHandler:
             for motor_spec in motor_mapping.values()
         }
 
+        # TODO: move motor facade to a separate subprocess?
         epos_handle_config = EposDeviceConfig(**motors["epos"])
-        self._epos = EposFacade(command_queue=motor_command_queue)
-        self._epos_handle = self._epos.init_device(epos_handle_config)
+        self._epos = EposFacade(
+            command_queue=motor_command_queue,
+            config=epos_handle_config,
+        )
 
-        # for motor_id in MotorId:
         self._active_motors: list[MotorId] = [MotorId.ANKLE, MotorId.KNEE]
         for motor_id in self._active_motors:
             self._epos.connect(motor_id)
@@ -241,7 +243,7 @@ class ProsthesisHandler:
 
         # Low-level motor controller gains.
         # TODO: use `watchdog` to live update gains parameters from a local text file for tunning motors response.
-        K: dict[str, ServoImpedanceGains] = {
+        K: Dict[str, ServoImpedanceGains] = {
             ServoMotorEnum.AK10_9.name: ServoImpedanceGains(
                 position=1.5, velocity=0.08, acceleration=0
             ),
@@ -250,19 +252,15 @@ class ProsthesisHandler:
             ),
         }
 
+        # ------------------------------------------------------------------------
+        # High-level locomotion mode selection FSM
+        # ------------------------------------------------------------------------
         # State machine live updater from a config file.
         self._fsm_config_manager = ConfigManager(fsm_config_path, output_dir)
 
-        # High-level locomotion mode selection FSM.
         ctx = ModeContext(
             epos=self._epos,
             K=K,
-            #################################################
-            # NOTE: provided for "unsafe" operations.
-            _nicla_latest_data=self._nicla_latest_data,
-            _encoder_latest_data=self._encoder_latest_data,
-            _motor_latest_data=self._motor_latest_data,
-            #################################################
             next_mode=self._next_mode,
             next_fatigue=self._next_fatigue,
             mode_changed_queue=mode_changed_queue,
@@ -276,8 +274,7 @@ class ProsthesisHandler:
         self._mode_fsm = ModeSelectionMachine(ctx, is_immediate_mode_switch)
         self._next_mode.next_value.value = self._mode_fsm.current_state.value
         self._is_paused = False
-        self._motor_command_queue = ctx.motor_command_queue
-        self._is_keep_data_event = ctx.is_keep_data_event
+        self._is_motors_calibrated = False
 
     async def _calibrate_motors(self) -> bool:
         try:
@@ -364,45 +361,6 @@ class ProsthesisHandler:
         )
         return True
 
-    async def _calibrate_imus(self, duration: float = 2.0) -> None:
-        """Measure average torso, thigh, and knee offsets over given seconds."""
-
-        print("Measuring IMU offsets... Please stand still.", flush=True)
-
-        samples = dict(
-            map(lambda field: (field.name, []), fields(self._nicla_name_mapping))
-        )
-
-        end_s = asyncio.get_event_loop().time() + duration
-        while asyncio.get_event_loop().time() < end_s:
-            try:
-                for device_name, device_data in self._nicla_latest_data.items():
-                    samples[device_name].append(
-                        wrap_angle(device_data[-1].euler[0], 90)
-                    )
-            except (KeyError, IndexError) as e:
-                print(
-                    f"Error getting offset sample for {device_name}:\n", e, flush=True
-                )
-                await asyncio.sleep(self._dt)
-                continue
-            await asyncio.sleep(self._dt)
-
-        async with self._nicla_offsets_lock:
-            print("Offsets measured:", flush=True)
-            for device_name, device_samples in samples.items():
-                self._nicla_offsets[device_name] = np.mean(device_samples)
-                print(f"{device_name}: {self._nicla_offsets[device_name]:.2f}")
-            nicla_offsets = dict(self._nicla_offsets)
-        self._calibration_event_queue.put(
-            CalibrationEvent(
-                timestamp=get_time(),
-                sensor_type=CalibrationEventType.NICLA,
-                offsets=nicla_offsets,
-            )
-        )
-        return True
-
     async def _watch_for_offset_recalibration(self) -> None:
         loop = asyncio.get_event_loop()
         while not self._is_exo_cleanup_event.is_set():
@@ -410,51 +368,51 @@ class ProsthesisHandler:
                 toa_s, user_input = await loop.run_in_executor(
                     None, self._input_queue.get, True, 0.1
                 )
-                if user_input == "m":
+                if user_input == "M":
                     await self._calibrate_motors()
-                elif user_input == "i":
-                    await self._calibrate_imus()
+                elif user_input == "I":
+                    self._nicla_backend_proc_input_queue.put((toa_s, user_input))
             except Empty:
                 pass
             except Exception as e:
                 print(f"Failed to connect: {e}", flush=True)
             finally:
-                await asyncio.sleep(5)
+                await asyncio.sleep(0.5)
 
     async def _recv_calibration_trigger(self, calibrate_fn: Callable) -> bool:
         loop = asyncio.get_event_loop()
         try:
             toa_s, user_input = await loop.run_in_executor(
-                None, self._input_queue.get, True, 0.1
+                None, self._input_queue.get, True, 1.0
             )
-            if user_input == "Y":
+            if user_input == "M":
                 res = await calibrate_fn()
-                success = True if res is None else bool(res)
-                if not success:
+                self._is_motors_calibrated = True if res is None else bool(res)
+                if not self._is_motors_calibrated:
                     print(
-                        "Calibration procedure was not attained. Press 'Y' to retry.",
+                        "Motors calibration procedure was not attained. Press 'M' to retry.",
                         flush=True,
                     )
-                return success
+            elif user_input == "I":
+                self._nicla_backend_proc_input_queue.put((toa_s, user_input))
         except Empty:
             pass
         except Exception as e:
             print(f"Failed to connect: {e}", flush=True)
-        return False
 
     async def _run_state_machine(self):
-        nicla_euler_samples: dict[str, float] = dict(
-            map(lambda field: (field.name, None), fields(self._nicla_name_mapping))
-        )
-        nicla_gyro_samples: dict[str, float] = dict(
-            map(lambda field: (field.name, None), fields(self._nicla_name_mapping))
-        )
-        encoder_samples: dict[MotorId, EncoderData] = dict(
-            map(lambda key: (key, None), self._encoder_latest_data.keys())
-        )
-        motor_samples: dict[MotorId, ServoMotorData] = dict(
-            map(lambda key: (key, None), self._motor_latest_data.keys())
-        )
+        nicla_euler_samples: Dict[str, float] = {
+            field.name: None for field in fields(self._nicla_name_mapping)
+        }
+        nicla_gyro_samples: Dict[str, float] = {
+            field.name: None for field in fields(self._nicla_name_mapping)
+        }
+        encoder_samples: Dict[MotorId, EncoderData] = {
+            key: None for key in self._encoder_latest_data.keys()
+        }
+        motor_samples: Dict[MotorId, ServoMotorData] = {
+            key: None for key in self._motor_latest_data.keys()
+        }
 
         count = 0
         mean = 0.0
@@ -462,26 +420,29 @@ class ProsthesisHandler:
         min_loop_time = 0.0
         max_loop_time = 0.0
         next_period_s = get_time()
+
+        # Initial sensor data buffering.
+        while any(len(dq) == 0 for dq in self._encoder_latest_data.values()) or any(
+            len(dq) == 0 for dq in self._motor_latest_data.values()
+        ):
+            start_time_s = get_time()
+            next_period_s += self._dt
+            if (sleep_s := (next_period_s - start_time_s)) > 0:
+                await asyncio.sleep(sleep_s)
+            continue
+
+        # Actual loop
         while not self._is_exo_cleanup_event.is_set():
             start_time_s = get_time()
             next_period_s += self._dt
 
-            if (
-                any(len(dq) == 0 for dq in self._nicla_latest_data.values())
-                or any(len(dq) == 0 for dq in self._encoder_latest_data.values())
-                or any(len(dq) == 0 for dq in self._motor_latest_data.values())
-            ):
-                if (sleep_s := (next_period_s - start_time_s)) > 0:
-                    await asyncio.sleep(sleep_s)
-                continue
-
-            async with self._nicla_offsets_lock:
+            with self._nicla_offsets.lock:
                 for device_name, device_data in self._nicla_latest_data.items():
                     nicla_euler_samples[device_name] = (
-                        device_data[-1].euler[0]
-                        - self._nicla_offsets[device_name]
+                        device_data.data.euler[0]
+                        - self._nicla_offsets.offsets[device_name].value
                     )
-                    nicla_gyro_samples[device_name] = device_data[-1].gyroscope[0]
+                    nicla_gyro_samples[device_name] = device_data.data.gyroscope[0]
 
             async with self._encoder_offsets_lock:
                 for encoder_id, encoder_data in self._encoder_latest_data.items():
@@ -505,23 +466,21 @@ class ProsthesisHandler:
             with self._next_is_pause.lock:
                 next_is_pause = self._next_is_pause.next_value.value
 
-            # Stop any in-progress motor movements if safety stop triggered.
             if next_is_pause and not self._is_paused:
+                # Stop any in-progress motor movements if safety stop triggered.
                 for motor_id in self._active_motors:
                     self._epos.quick_stop(motor_id)
                 self._is_paused = True
-
-            # Re-enable motors if safety is switched off.
             elif not next_is_pause and self._is_paused:
+                # Re-enable motors if safety is switched off.
                 for motor_id in self._active_motors:
                     self._epos.enable(motor_id)
                 self._is_paused = False
                 self._mode_fsm.to_idle()
-
-            # Check if the handler received an update of state from the parent Pipeline mode with the new AI prediction.
-            # The condition is evaluated on each loop iteration to recognize asynchronously received intent prediction.
-            #   Internal logic of the `ModeSelectionMachine` will judge on which iteration to permit transition using conditional FSM transitions.
             elif not next_is_pause and not self._is_paused:
+                # Check if the handler received an update of state from the parent Pipeline mode with the new AI prediction.
+                # The condition is evaluated on each loop iteration to recognize asynchronously received intent prediction.
+                #   Internal logic of the `ModeSelectionMachine` will judge on which iteration to permit transition using conditional FSM transitions.
                 with self._next_mode.lock:
                     next_mode = self._next_mode.next_value.value
                     next_mode_sequence_id = self._next_mode.sequence_id.value
@@ -620,30 +579,23 @@ class ProsthesisHandler:
                 )
         self._epos.shutdown(self._active_motors)
 
+        print("Stopping CAN bus encoder data notifier.", flush=True)
         self._can_notifier.stop()
 
-        print("Cleaning up Niclas.", flush=True)
-        await self._nicla_backend.cleanup()
-        # if self._is_emulate_can:
-        #     print("Cleaning up CAN emulator.", flush=True)
-        #     self._can_emulator_proc.join()
+        self._nicla_backend_proc.join()
+        print("Releasing Niclas shared memory latest data buffers.", flush=True)
+        for nicla_shm in self._nicla_latest_data.values():
+            nicla_shm.close()
+            nicla_shm.unlink()
 
     async def main(self) -> None:
         # Initialize time utils for temporal alignment (data synchronization) with other HERMES components and networked host devices.
         init_time(ref_time=self._ref_time_s)
 
-        # 1) Perform initial calibration of motors.
-        print("Press 'Y' for power-on motors calibration.", flush=True)
-        is_calibrated = False
-        while not is_calibrated:
-            is_calibrated = await self._recv_calibration_trigger(self._calibrate_motors)
-
-        # 2) Connect to the Nicla Sense ME sensors and calibrate offsets.
-        await self._nicla_backend.connect()
-        print("Press 'Y' for power-on IMU offset calibration.", flush=True)
-        is_calibrated = False
-        while not is_calibrated:
-            is_calibrated = await self._recv_calibration_trigger(self._calibrate_imus)
+        # 1) Perform initial calibration of motors and IMUs.
+        print("Press 'M' for power-on motors calibration.", flush=True)
+        while not self._is_motors_calibrated or not self._nicla_offsets.is_calibrated():
+            await self._recv_calibration_trigger(self._calibrate_motors)
 
         # 3) Indicate to `Pipeline` that handler finished connecting and exo calibrated.
         # NOTE: Begins streaming IMU and motor data, but stores only after upstream HERMES node triggers saving via `_is_keep_data_event` event.
@@ -656,7 +608,6 @@ class ProsthesisHandler:
             self._run_state_machine(),
             self._poll_motor_data(),
             self._watch_for_offset_recalibration(),
-            self._nicla_backend.run(),
         )
         # Indicate to `ExoPipeline` that no new data will be produced.
         self._is_finished_event.set()

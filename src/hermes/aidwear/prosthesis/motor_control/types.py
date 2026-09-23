@@ -11,15 +11,20 @@ from hermes.aidwear.prosthesis.utils.types import (
 
 class RecoveryStrategy(Enum):
     """Strategy for applying motor setpoints following an automatic fault recovery."""
-    BUMPLESS_HOLD = "bumpless_hold"  # Latch actual position upon re-enabling to prevent jerk
+
+    BUMPLESS_HOLD = (
+        "bumpless_hold"  # Latch actual position upon re-enabling to prevent jerk
+    )
     LATEST_TARGET = "latest_target"  # Immediately dispatch latest upstream setpoint
-    RAMP_TO_TARGET = "ramp_to_target"  # Smoothly interpolate between actual and target setpoint
+    RAMP_TO_TARGET = (
+        "ramp_to_target"  # Smoothly interpolate between actual and target setpoint
+    )
 
 
 @dataclass
 class EposRecoveryConfig:
     """Parameters controlling drive fault detection and autonomous recovery.
-    
+
     Args:
         max_retries: Number of recovery retries. Set to -1 (default) to retry
             indefinitely until program termination.
@@ -28,6 +33,7 @@ class EposRecoveryConfig:
         auto_recover: If True, automatically clears faults and recovers the drive.
         rate_limit: Rate limit when ramping setpoints.
     """
+
     max_retries: int = -1
     retry_delay_s: float = 0.05
     strategy: RecoveryStrategy = RecoveryStrategy.BUMPLESS_HOLD
@@ -54,7 +60,11 @@ class EposDeviceConfig:
         timeout_ms: int = 500,
     ):
         self.device = device if isinstance(device, EposDevice) else EposDevice[device]
-        self.protocol = protocol if isinstance(protocol, EposProtocolStack) else EposProtocolStack[protocol]
+        self.protocol = (
+            protocol
+            if isinstance(protocol, EposProtocolStack)
+            else EposProtocolStack[protocol]
+        )
         self.interface = interface
         self.port = port
         self.baudrate = baudrate
@@ -86,7 +96,9 @@ class HomingConfig:
 
     def __init__(
         self,
-        homing_method: Union[HomingMethod, str] = HomingMethod.CURRENT_THRESHOLD_NEGATIVE_SPEED,
+        homing_method: Union[
+            HomingMethod, str
+        ] = HomingMethod.CURRENT_THRESHOLD_NEGATIVE_SPEED,
         acceleration: int = 1_000,
         speed_switch: int = 900,
         speed_index: int = 900,
@@ -94,7 +106,11 @@ class HomingConfig:
         home_offset_enc_ticks: int = -100_000,
         home_position_coordinate: int = 0,
     ):
-        self.homing_method = homing_method if isinstance(homing_method, HomingMethod) else HomingMethod[homing_method]
+        self.homing_method = (
+            homing_method
+            if isinstance(homing_method, HomingMethod)
+            else HomingMethod[homing_method]
+        )
         self.acceleration = acceleration
         self.speed_switch = speed_switch
         self.speed_index = speed_index

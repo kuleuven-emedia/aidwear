@@ -53,10 +53,11 @@ class SharedTensorCircularBuffer:
         ).share_memory_()
         self.toa_s = torch.zeros(buf_len, 1, dtype=torch.float64).share_memory_()
 
+        # Write head always points to the newest sample in the circular buffer
         self.metadata_lock = mp.Lock()
         self.is_reading: Synchronized[bool] = Value("b", False, lock=False)
         self.is_writing: Synchronized[bool] = Value("b", False, lock=False)
-        self.write_head: Synchronized[int] = Value("i", 0, lock=False)  # Always points to the newest sample in the circular buffer
+        self.write_head: Synchronized[int] = Value("i", 0, lock=False)
         self.read_head: Synchronized[int] = Value("i", 0, lock=False)
         self.read_tail: Synchronized[int] = Value("i", 0, lock=False)
 

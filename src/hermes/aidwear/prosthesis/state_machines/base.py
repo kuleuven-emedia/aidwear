@@ -8,7 +8,7 @@ from hermes.aidwear.prosthesis.utils.types import (
     NiclaSamples,
     EncoderData,
     MotorId,
-    ServoMotorData
+    ServoMotorData,
 )
 from abc import abstractmethod
 

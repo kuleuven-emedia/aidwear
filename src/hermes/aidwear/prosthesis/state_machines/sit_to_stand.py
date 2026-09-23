@@ -4,7 +4,11 @@ Description: AidWear-specific state machine for the hierarchical control
     of the sit-to-stand ambulation mode.
 """
 
-from hermes.aidwear.prosthesis.utils.types import NiclaSamples, ServoMotorData, EncoderData
+from hermes.aidwear.prosthesis.utils.types import (
+    NiclaSamples,
+    ServoMotorData,
+    EncoderData,
+)
 from dataclasses import asdict
 import numpy as np
 from statemachine import Event, State, StateMachine

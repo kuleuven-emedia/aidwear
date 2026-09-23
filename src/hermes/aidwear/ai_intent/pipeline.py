@@ -58,7 +58,15 @@ class IntentClassifierPipeline(Pipeline):
         self._is_finished_event = Event()
 
         # Check if video data is used and if images arrive in MJPEG format.
-        self._is_mjpeg = any(filter(lambda x: x["settings"].get("video_image_format", None) == VideoFormatEnum.MJPEG.name, data_in_specs))
+        self._is_mjpeg = any(
+            filter(
+                lambda x: (
+                    x["settings"].get("video_image_format", None)
+                    == VideoFormatEnum.MJPEG.name
+                ),
+                data_in_specs,
+            )
+        )
 
         # Define scaling factors for converting raw Nicla IMU data to real-world units.
         self._imu_type = data_out_spec["imu_type"]
@@ -71,9 +79,7 @@ class IntentClassifierPipeline(Pipeline):
 
         # Instantiate shared memory torch circular buffers.
         self._torch_device: str = data_out_spec["device"]
-        input_modalities_spec: dict[str, dict[str, dict]] = data_out_spec[
-            "modalities"
-        ]
+        input_modalities_spec: dict[str, dict[str, dict]] = data_out_spec["modalities"]
         self._input_buffer: dict[
             ModalityType, dict[NiclaLocation | str, SharedTensorCircularBuffer]
         ] = {
@@ -301,7 +307,7 @@ class IntentClassifierPipeline(Pipeline):
                     byte_tensor = torch.frombuffer(data["frame"], dtype=torch.uint8)
                     frame = torchvision.io.decode_jpeg(byte_tensor)
                 else:
-                    frame = torch.tensor(data["frame"][0]).permute(2,0,1)
+                    frame = torch.tensor(data["frame"][0]).permute(2, 0, 1)
 
                 self._input_buffer[self._ego_modality_type]["ego"].put(
                     new_data=frame.unsqueeze(0),
@@ -318,7 +324,9 @@ class IntentClassifierPipeline(Pipeline):
                     "predictions": result.predictions[None],
                     "logits": result.logits[None],
                     "toa_s": np.array([[result.end_time_s]], dtype=np.float64),
-                    "compute_time_s": np.array([[result.end_time_s - result.start_time_s]], dtype=np.float64),
+                    "compute_time_s": np.array(
+                        [[result.end_time_s - result.start_time_s]], dtype=np.float64
+                    ),
                     "window_start_s": result.window_start_s[None],
                     "window_end_s": result.window_end_s[None],
                     "sequence_id": np.array([[result.counter]], dtype=np.uint32),

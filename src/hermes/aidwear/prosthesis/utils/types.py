@@ -11,7 +11,6 @@ from __future__ import annotations
 import ctypes
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import deque
 from multiprocessing import Queue, Lock, Value
 from multiprocessing.synchronize import Event as _Event, Lock as _Lock
 from multiprocessing.sharedctypes import Synchronized
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
     from hermes.aidwear.prosthesis.utils.config_manager import ConfigManager
     from hermes.aidwear.prosthesis.motor_control.epos_facade import EposFacade
 
-from hermes.aidwear.utils.types import NiclaData, NiclaLocation
+from hermes.nicla_sense_me.utils.types import NiclaLocation
 
 epos_handle: TypeAlias = ctypes.c_void_p
 
@@ -178,21 +177,29 @@ class ServoErrorCode(Enum):
     OVER_VOLT = 3  # Over voltage fault
     UNDER_VOLT = 4  # Under voltage fault
     ENCODER_ERR = 5  # Encoder fault
-    PHASE_IMBALANCE_ERR = 6  # Phase current unbalanced fault (The hardware may be damaged)
+    PHASE_IMBALANCE_ERR = (
+        6  # Phase current unbalanced fault (The hardware may be damaged)
+    )
 
 
 # TODO: update (used to be for CubeMars)
 class ServoCanPacketEnum(Enum):
-    DUTY_CYCLE_MODE = 0  # Motor is driven by a square wave voltage of specified duty cycle
+    DUTY_CYCLE_MODE = (
+        0  # Motor is driven by a square wave voltage of specified duty cycle
+    )
     CURRENT_LOOP_MODE = 1  # Motor operates in torque loop mode
     CURRENT_BRAKE_MODE = 2  # Motor holds current position at specified braking current
     VELOCITY_MODE = 3  # Motor operates at specified target speed
     POSITION_MODE = 4  # Motor reaches specified target position at maximum speed
     SET_ORIGIN_MODE = 5  # Motor calibrates homing position
-    POSITION_VELOCITY_MODE = 6  # Motor operates at specified position, velocity, and acceleration
+    POSITION_VELOCITY_MODE = (
+        6  # Motor operates at specified position, velocity, and acceleration
+    )
     MOTOR_DISABLE_MODE = 15  # Motor gets disabled
     FEEDBACK_MESSAGE_CONFIG = 16  # Motor feedback data contents are updated
-    VIRTUAL_IMPEDANCE_MODE = 17  # Motor operates in impedance mode, through torque loop mode as proxy
+    VIRTUAL_IMPEDANCE_MODE = (
+        17  # Motor operates in impedance mode, through torque loop mode as proxy
+    )
 
 
 @dataclass
@@ -309,9 +316,9 @@ class NextModeSynchronized:
 
     def __post_init__(self):
         self.lock = Lock()
-        self.next_value = Value("i", lock=False)
-        self.sequence_id = Value("i", lock=False)
-        self.source = Value("i", lock=False)
+        self.next_value = Value("i", -1, lock=False)
+        self.sequence_id = Value("i", -1, lock=False)
+        self.source = Value("i", -1, lock=False)
 
 
 @dataclass
@@ -323,9 +330,9 @@ class NextFatigueSynchronized:
 
     def __post_init__(self):
         self.lock = Lock()
-        self.next_value = Value("f", lock=False)
-        self.sequence_id = Value("i", lock=False)
-        self.source = Value("i", lock=False)
+        self.next_value = Value("f", 0.0, lock=False)
+        self.sequence_id = Value("i", -1, lock=False)
+        self.source = Value("i", -1, lock=False)
 
 
 @dataclass
@@ -336,17 +343,14 @@ class NextIsPauseSynchronized:
 
     def __post_init__(self):
         self.lock = Lock()
-        self.next_value = Value("b", lock=False)
-        self.sequence_id = Value("i", lock=False)
+        self.next_value = Value("b", False, lock=False)
+        self.sequence_id = Value("i", -1, lock=False)
 
 
 @dataclass
 class ModeContext:
     epos: "EposFacade"
     K: dict[str, ServoImpedanceGains]
-    _nicla_latest_data: dict[str, deque[NiclaData]]
-    _encoder_latest_data: dict[MotorId, deque[EncoderData]]
-    _motor_latest_data: dict[MotorId, deque[ServoMotorData]]
     next_mode: NextModeSynchronized
     next_fatigue: NextFatigueSynchronized
     mode_changed_queue: "Queue[ModeTransition]"
@@ -592,22 +596,10 @@ class NiclaSamples:
         thigh_left_angle = euler[NiclaLocation.THIGH_LEFT.value]
         thigh_right_angle = euler[NiclaLocation.THIGH_RIGHT.value]
 
-        thigh_left_roll = (
-            torso_angle
-            - thigh_left_angle
-        )
-        thigh_right_roll = (
-            torso_angle
-            - thigh_right_angle
-        )
-        knee_left_roll = (
-            euler[NiclaLocation.SHANK_LEFT.value]
-            - thigh_left_angle
-        )
-        knee_right_roll = (
-            euler[NiclaLocation.SHANK_RIGHT.value]
-            - thigh_right_angle
-        )
+        thigh_left_roll = torso_angle - thigh_left_angle
+        thigh_right_roll = torso_angle - thigh_right_angle
+        knee_left_roll = euler[NiclaLocation.SHANK_LEFT.value] - thigh_left_angle
+        knee_right_roll = euler[NiclaLocation.SHANK_RIGHT.value] - thigh_right_angle
 
         thigh_left_gyr = gyroscope_scaling_factor * (
             gyroscope[NiclaLocation.THIGH_LEFT.value]
@@ -638,4 +630,4 @@ class NiclaSamples:
             thigh_right_gyr=thigh_right_gyr,
             knee_left_gyr=knee_left_gyr,
             knee_right_gyr=knee_right_gyr,
-        ) 
+        )

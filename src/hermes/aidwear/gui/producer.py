@@ -100,7 +100,9 @@ class PhoneGuiProducer(Producer):
                     new_data={
                         "intent": {
                             "toa_s": np.array([[toa_s]], dtype=np.float64),
-                            "timestamp": np.array([[android_timestamp / 1000.0]], dtype=np.float64),
+                            "timestamp": np.array(
+                                [[android_timestamp / 1000.0]], dtype=np.float64
+                            ),
                             "mode": np.array([[mode.value.id]], dtype=np.uint8),
                             "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
                         }
@@ -122,7 +124,9 @@ class PhoneGuiProducer(Producer):
                     new_data={
                         "fatigue": {
                             "toa_s": np.array([[toa_s]], dtype=np.float64),
-                            "timestamp": np.array([[android_timestamp / 1000.0]], dtype=np.float64),
+                            "timestamp": np.array(
+                                [[android_timestamp / 1000.0]], dtype=np.float64
+                            ),
                             "level": np.array([[fatigue]], dtype=np.float32),
                             "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
                         }

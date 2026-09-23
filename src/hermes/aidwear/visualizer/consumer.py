@@ -132,9 +132,15 @@ class VisualizerConsumer(Consumer):
         plt.ion()
 
         fig, axes = plt.subplots(3, 3, figsize=(15, 9.5))
-        if fig.canvas.manager is not None and hasattr(fig.canvas.manager, "set_window_title"):
-            fig.canvas.manager.set_window_title(f"HERMES Prosthesis Live Telemetry [{self.node_id}]")
-        fig.suptitle("Prosthesis Live Multimodal Telemetry", fontsize=16, fontweight="bold")
+        if fig.canvas.manager is not None and hasattr(
+            fig.canvas.manager, "set_window_title"
+        ):
+            fig.canvas.manager.set_window_title(
+                f"HERMES Prosthesis Live Telemetry [{self.node_id}]"
+            )
+        fig.suptitle(
+            "Prosthesis Live Multimodal Telemetry", fontsize=16, fontweight="bold"
+        )
         self._fig = fig
         self._axes = axes
 
@@ -308,7 +314,9 @@ class VisualizerConsumer(Consumer):
                         for p in pos_samples:
                             self._motor_pos[motor_id].append(float(p))
                         y_vals = list(self._motor_pos[motor_id])
-                        self._lines_motor_pos[motor_id].set_data(range(len(y_vals)), y_vals)
+                        self._lines_motor_pos[motor_id].set_data(
+                            range(len(y_vals)), y_vals
+                        )
                         axes_to_relim.add(self._lines_motor_pos[motor_id].axes)
 
                     if "velocity" in bundle_data:
@@ -316,7 +324,9 @@ class VisualizerConsumer(Consumer):
                         for v in vel_samples:
                             self._motor_vel[motor_id].append(float(v))
                         y_vals = list(self._motor_vel[motor_id])
-                        self._lines_motor_vel[motor_id].set_data(range(len(y_vals)), y_vals)
+                        self._lines_motor_vel[motor_id].set_data(
+                            range(len(y_vals)), y_vals
+                        )
                         axes_to_relim.add(self._lines_motor_vel[motor_id].axes)
 
                     if "current" in bundle_data:
@@ -324,14 +334,20 @@ class VisualizerConsumer(Consumer):
                         for c in cur_samples:
                             self._motor_cur[motor_id].append(float(c))
                         y_vals = list(self._motor_cur[motor_id])
-                        self._lines_motor_cur[motor_id].set_data(range(len(y_vals)), y_vals)
+                        self._lines_motor_cur[motor_id].set_data(
+                            range(len(y_vals)), y_vals
+                        )
                         axes_to_relim.add(self._lines_motor_cur[motor_id].axes)
 
             # 3. Absolute encoder updates (knee, ankle)
             elif bundle_name.startswith("encoder_"):
                 encoder_name = bundle_name[8:]  # strip 'encoder_'
                 encoder_id = self.ENCODER_BY_NAME.get(encoder_name)
-                if encoder_id is not None and encoder_id in self._encoder_angle and "angle" in bundle_data:
+                if (
+                    encoder_id is not None
+                    and encoder_id in self._encoder_angle
+                    and "angle" in bundle_data
+                ):
                     angle_samples = np.asarray(bundle_data["angle"]).ravel()
                     for a in angle_samples:
                         self._encoder_angle[encoder_id].append(float(a))
