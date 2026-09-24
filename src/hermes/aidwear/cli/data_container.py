@@ -37,50 +37,6 @@ class CliDataContainer(DataContainer):
         )
 
         self.add_channel(
-            bundle_name="fatigue",
-            channel_name="level",
-            data_type="float32",
-            sample_size=[1],
-            buf_len=buf_len,
-        )
-        self.add_channel(
-            bundle_name="fatigue",
-            channel_name="sequence_id",
-            data_type="uint32",
-            sample_size=[1],
-            buf_len=buf_len,
-        )
-        self.add_channel(
-            bundle_name="fatigue",
-            channel_name="toa_s",
-            data_type="float64",
-            sample_size=[1],
-            buf_len=buf_len,
-        )
-
-        self.add_channel(
-            bundle_name="event",
-            channel_name="mark",
-            data_type="uint8",
-            sample_size=[1],
-            buf_len=buf_len,
-        )
-        self.add_channel(
-            bundle_name="event",
-            channel_name="sequence_id",
-            data_type="uint32",
-            sample_size=[1],
-            buf_len=buf_len,
-        )
-        self.add_channel(
-            bundle_name="event",
-            channel_name="toa_s",
-            data_type="float64",
-            sample_size=[1],
-            buf_len=buf_len,
-        )
-
-        self.add_channel(
             bundle_name="safety_stop",
             channel_name="is_pause",
             data_type="bool",
@@ -101,6 +57,3 @@ class CliDataContainer(DataContainer):
             sample_size=[1],
             buf_len=buf_len,
         )
-
-    def get_fps(self) -> dict[str, float | None]:
-        return {"intent": super()._get_fps("intent", "toa_s")}

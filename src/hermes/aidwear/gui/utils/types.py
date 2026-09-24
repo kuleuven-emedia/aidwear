@@ -10,5 +10,9 @@ from enum import Enum
 
 
 class GuiCommandType(Enum):
+    NULL = -1
     INTENT = 0
     FATIGUE = 1
+    SAFETY_STOP = 2
+    CALIBRATE_MOTORS = 3
+    CALIBRATE_IMUS = 4

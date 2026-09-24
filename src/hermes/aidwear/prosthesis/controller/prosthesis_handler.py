@@ -49,11 +49,13 @@ from ..utils.types import (
     NextFatigueSynchronized,
     NextIsPauseSynchronized,
     NextModeSynchronized,
+    NextCalibrationSynchronized,
     StateTransition,
     PhaseEstimate,
     AbsoluteEncoderOffset,
     NiclaSamples,
 )
+from hermes.aidwear.gui.utils.types import GuiCommandType
 from hermes.nicla_sense_me.utils.abstract_backend import NiclaBackend
 from hermes.nicla_sense_me.utils.ble_backend import NiclaBleBackend
 from hermes.nicla_sense_me.utils.types import (
@@ -86,6 +88,7 @@ class ProsthesisHandler:
         next_mode_synchronized: NextModeSynchronized,
         next_fatigue_synchronized: NextFatigueSynchronized,
         next_is_pause_synchronized: NextIsPauseSynchronized,
+        next_calibration_event: NextCalibrationSynchronized,
         ref_time_s: float,
         is_ready_event: _Event,
         is_keep_data_event: _Event,
@@ -113,6 +116,7 @@ class ProsthesisHandler:
         self._next_mode = next_mode_synchronized
         self._next_fatigue = next_fatigue_synchronized
         self._next_is_pause = next_is_pause_synchronized
+        self._next_calibration_event = next_calibration_event
 
         self._is_ready_event = is_ready_event
         self._is_keep_data_event = is_keep_data_event
@@ -366,10 +370,15 @@ class ProsthesisHandler:
                 toa_s, user_input = await loop.run_in_executor(
                     None, self._input_queue.get, True, 0.1
                 )
-                if user_input == "M":
+                with self._next_calibration_event.lock:
+                    next_calibration = self._next_calibration_event.next_value.value
+                    gui_cmd = GuiCommandType(next_calibration)
+                    self._next_calibration_event.next_value.value = GuiCommandType.NULL
+
+                if user_input == "M" or gui_cmd == GuiCommandType.CALIBRATE_MOTORS:
                     await self._calibrate_motors()
-                elif user_input == "I":
-                    self._nicla_backend_proc_input_queue.put((toa_s, user_input))
+                elif user_input == "I" or gui_cmd == GuiCommandType.CALIBRATE_IMUS:
+                    self._nicla_backend_proc_input_queue.put((toa_s, "I"))
             except Empty:
                 pass
             except Exception as e:
@@ -383,7 +392,12 @@ class ProsthesisHandler:
             toa_s, user_input = await loop.run_in_executor(
                 None, self._input_queue.get, True, 1.0
             )
-            if user_input == "M":
+            with self._next_calibration_event.lock:
+                next_calibration = self._next_calibration_event.next_value.value
+                gui_cmd = GuiCommandType(next_calibration)
+                self._next_calibration_event.next_value.value = GuiCommandType.NULL
+
+            if user_input == "M" or gui_cmd == GuiCommandType.CALIBRATE_MOTORS:
                 res = await calibrate_fn()
                 self._is_motors_calibrated = True if res is None else bool(res)
                 if not self._is_motors_calibrated:
@@ -391,8 +405,8 @@ class ProsthesisHandler:
                         "Motors calibration procedure was not attained. Press 'M' to retry.",
                         flush=True,
                     )
-            elif user_input == "I":
-                self._nicla_backend_proc_input_queue.put((toa_s, user_input))
+            elif user_input == "I" or gui_cmd == GuiCommandType.CALIBRATE_IMUS:
+                self._nicla_backend_proc_input_queue.put((toa_s, "I"))
         except Empty:
             pass
         except Exception as e:

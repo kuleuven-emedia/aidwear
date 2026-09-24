@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/gui/data_container.py
+Filename: hermes/aidwear/gui/data_container.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-02-20
 Version: 1.0
@@ -50,33 +50,59 @@ class PhoneGuiDataContainer(DataContainer):
         )
 
         self.add_channel(
-            bundle_name="fatigue",
-            channel_name="level",
-            data_type="float32",
+            bundle_name="safety_stop",
+            channel_name="is_pause",
+            data_type="bool",
             sample_size=[1],
             buf_len=buf_len,
         )
         self.add_channel(
-            bundle_name="fatigue",
+            bundle_name="safety_stop",
             channel_name="sequence_id",
             data_type="uint32",
             sample_size=[1],
             buf_len=buf_len,
         )
         self.add_channel(
-            bundle_name="fatigue",
+            bundle_name="safety_stop",
             channel_name="toa_s",
             data_type="float64",
             sample_size=[1],
             buf_len=buf_len,
         )
         self.add_channel(
-            bundle_name="fatigue",
+            bundle_name="safety_stop",
             channel_name="timestamp",
             data_type="float64",
             sample_size=[1],
             buf_len=buf_len,
         )
 
-    def get_fps(self) -> dict[str, float | None]:
-        return {"intent": super()._get_fps("intent", "toa_s")}
+        self.add_channel(
+            bundle_name="calibration_cmd",
+            channel_name="type",
+            data_type="uint8",
+            sample_size=[1],
+            buf_len=buf_len,
+        )
+        self.add_channel(
+            bundle_name="calibration_cmd",
+            channel_name="sequence_id",
+            data_type="uint32",
+            sample_size=[1],
+            buf_len=buf_len,
+        )
+        self.add_channel(
+            bundle_name="calibration_cmd",
+            channel_name="toa_s",
+            data_type="float64",
+            sample_size=[1],
+            buf_len=buf_len,
+        )
+        self.add_channel(
+            bundle_name="calibration_cmd",
+            channel_name="timestamp",
+            data_type="float64",
+            sample_size=[1],
+            buf_len=buf_len,
+        )

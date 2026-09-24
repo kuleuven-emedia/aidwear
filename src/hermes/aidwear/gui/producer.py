@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/gui/producer.py
+Filename: hermes/aidwear/gui/producer.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-03-12
 Version: 1.0
@@ -23,6 +23,7 @@ from .utils.types import GuiCommandType
 from .data_container import PhoneGuiDataContainer
 
 
+# TODO: incorporate safety stop and calibration buttons
 class PhoneGuiProducer(Producer):
     def __init__(
         self,
@@ -40,6 +41,7 @@ class PhoneGuiProducer(Producer):
         self._phone_ip = phone_ip
         self._phone_port = phone_port
         self._int_to_mode: dict[int, ModeEnum] = {cmd.value.id: cmd for cmd in ModeEnum}
+        self._is_pause = False
 
         data_out_spec = {
             "buf_len": buf_len,
@@ -89,6 +91,7 @@ class PhoneGuiProducer(Producer):
             command_type, command_value, sequence_id, android_timestamp = struct.unpack(
                 ">BBIQ", payload
             )
+
             gui_command = GuiCommandType(command_type)
 
             if gui_command == GuiCommandType.INTENT:
@@ -108,26 +111,39 @@ class PhoneGuiProducer(Producer):
                         }
                     },
                 )
-            elif gui_command == GuiCommandType.FATIGUE:
-                fatigue: float = 10 * (
-                    command_value
-                    if 0 <= command_value <= 10
-                    else (10 if command_value > 10 else 0)
-                )
-
+            elif gui_command == GuiCommandType.SAFETY_STOP:
+                self._is_pause = not self._is_pause
                 print(
-                    f"User selected assistance lvl: {command_value}. Setting to {fatigue}%",
+                    f"User pressed [SAFETY_STOP] in GUI. Sending {self._is_pause}...",
                     flush=True,
                 )
                 self._publish(
                     process_time_s=get_time(),
                     new_data={
-                        "fatigue": {
+                        "safety_stop": {
+                            "toa_s": np.array([[toa_s]], dtype=np.float64),
+                            "is_pause": np.array([[self._is_pause]], dtype=np.bool),
+                            "timestamp": np.array(
+                                [[android_timestamp / 1000.0]], dtype=np.float64
+                            ),
+                            "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
+                        }
+                    },
+                )
+            elif gui_command in [GuiCommandType.CALIBRATE_MOTORS, GuiCommandType.CALIBRATE_IMUS]:
+                print(
+                    f"User pressed [{gui_command.name}] in GUI. Sending trigger...",
+                    flush=True,
+                )
+                self._publish(
+                    process_time_s=get_time(),
+                    new_data={
+                        "calibration_cmd": {
+                            "type": np.array([[gui_command.value]], dtype=np.uint8),
                             "toa_s": np.array([[toa_s]], dtype=np.float64),
                             "timestamp": np.array(
                                 [[android_timestamp / 1000.0]], dtype=np.float64
                             ),
-                            "level": np.array([[fatigue]], dtype=np.float32),
                             "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
                         }
                     },

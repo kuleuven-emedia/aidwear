@@ -36,8 +36,6 @@ class CliProducer(Producer):
     ):
         self._input_queue: Queue[tuple[float, str]] = _["input_queue"]
         self._intent_sequence_id = 0
-        self._fatigue_sequence_id = 0
-        self._event_sequence_id = 0
         self._is_pause = False
 
         def intent_callback(
@@ -50,36 +48,6 @@ class CliProducer(Producer):
                     "intent": {
                         "toa_s": np.array([[toa_s]], dtype=np.float64),
                         "mode": np.array([[mode.value.id]], dtype=np.uint8),
-                        "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
-                    }
-                },
-            )
-
-        def fatigue_callback(
-            fatigue: float, toa_s: float, process_time_s: float, sequence_id: int
-        ) -> None:
-            print(f"User set assistance to: {fatigue}", flush=True)
-            self._publish(
-                process_time_s=process_time_s,
-                new_data={
-                    "fatigue": {
-                        "toa_s": np.array([[toa_s]], dtype=np.float64),
-                        "level": np.array([[fatigue]], dtype=np.float32),
-                        "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
-                    }
-                },
-            )
-
-        def event_callback(
-            toa_s: float, process_time_s: float, sequence_id: int
-        ) -> None:
-            print(f"User marked event", flush=True)
-            self._publish(
-                process_time_s=process_time_s,
-                new_data={
-                    "event": {
-                        "toa_s": np.array([[toa_s]], dtype=np.float64),
-                        "mark": np.array([[1]], dtype=np.uint8),
                         "sequence_id": np.array([[sequence_id]], dtype=np.uint32),
                     }
                 },

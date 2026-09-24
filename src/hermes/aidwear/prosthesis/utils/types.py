@@ -337,6 +337,18 @@ class NextIsPauseSynchronized:
 
 
 @dataclass
+class NextCalibrationSynchronized:
+    lock: _Lock = field(init=False)
+    next_value: "Synchronized[int]" = field(init=False)
+    sequence_id: "Synchronized[int]" = field(init=False)
+
+    def __post_init__(self):
+        self.lock = Lock()
+        self.next_value = Value("i", -1, lock=False)
+        self.sequence_id = Value("i", -1, lock=False)
+
+
+@dataclass
 class ModeContext:
     epos: "EposFacade"
     K: dict[str, ServoImpedanceGains]

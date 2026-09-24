@@ -35,6 +35,7 @@ from .utils.types import (
     NextFatigueSynchronized,
     NextIsPauseSynchronized,
     NextModeSynchronized,
+    NextCalibrationSynchronized,
     StateTransition,
     PhaseEstimate,
     ServoMotorData,
@@ -121,6 +122,7 @@ class ProsthesisPipeline(Pipeline):
         self._next_mode = NextModeSynchronized()
         self._next_fatigue = NextFatigueSynchronized()
         self._next_is_pause = NextIsPauseSynchronized()
+        self._next_calibration_event = NextCalibrationSynchronized()
 
         # Synchronization primitives between background exo handler and foreground HERMES procs.
         self._is_ready_event = Event()
@@ -146,6 +148,7 @@ class ProsthesisPipeline(Pipeline):
             "next_mode_synchronized": self._next_mode,
             "next_fatigue_synchronized": self._next_fatigue,
             "next_is_pause_synchronized": self._next_is_pause,
+            "next_calibration_event_synchronized": self._next_calibration_event,
         }
 
         hermes_kwargs = {
@@ -237,6 +240,14 @@ class ProsthesisPipeline(Pipeline):
                         "is_pause"
                     ].item()
                     self._next_is_pause.sequence_id.value = msg["safety_stop"][
+                        "sequence_id"
+                    ].item()
+            elif "calibration_cmd" in msg:
+                with self._next_calibration_event.lock:
+                    self._next_calibration_event.next_value.value = msg["calibration_cmd"][
+                        "type"
+                    ].item()
+                    self._next_is_pause.sequence_id.value = msg["calibration_cmd"][
                         "sequence_id"
                     ].item()
         elif topic == "ai_intent":
