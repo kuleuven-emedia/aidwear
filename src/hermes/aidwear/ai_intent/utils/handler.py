@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/ai_intent/utils/handler.py
+Filename: hermes/aidwear/ai_intent/utils/handler.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2025-12-31
 Version: 1.0
@@ -22,7 +22,7 @@ from multiprocessing.synchronize import Event as _Event
 
 from hermes.utils.time_utils import get_time, init_time
 
-from src.hermes.aidwear.utils.types import NiclaLocation
+from hermes.nicla_sense_me.utils.types import NiclaLocation
 
 from .datastructures import BufferSlice, SharedTensorCircularBuffer
 from .types import Config, InferenceResult, ModalityType, ModelType

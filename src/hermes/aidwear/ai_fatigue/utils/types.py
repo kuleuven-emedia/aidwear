@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/ai_fatigue/utils/types.py
+Filename: hermes/aidwear/ai_fatigue/utils/types.py
 Author: Diwas Lamsal <diwaslamsal123@hotmail.com>
 Date: 2026-06-25
 Version: 1.0

@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/ai_intent/utils/utils.py
+Filename: hermes/aidwear/ai_intent/utils/utils.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-03-16
 Version: 1.0
@@ -11,7 +11,7 @@ from typing import Callable, List, Optional
 import numpy as np
 from torch import Tensor
 
-from src.hermes.aidwear.utils.types import NiclaLocation
+from hermes.nicla_sense_me.utils.types import NiclaLocation
 
 from .transforms import Compose
 from .datastructures import BufferSlice, SharedTensorCircularBuffer

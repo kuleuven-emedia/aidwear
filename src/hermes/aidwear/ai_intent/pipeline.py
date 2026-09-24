@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/ai_intent/pipeline.py
+Filename: hermes/aidwear/ai_intent/pipeline.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-03-16
 Version: 1.0
@@ -26,7 +26,7 @@ from hermes.utils.zmq_utils import (
     PORT_KILL,
 )
 
-from ..utils.types import NiclaDataGetMethods, NiclaLocation
+from hermes.nicla_sense_me.utils.types import NiclaDataGetMethods, NiclaLocation
 
 from .data_container import IntentClassifierDataContainer
 from .utils.datastructures import SharedTensorCircularBuffer

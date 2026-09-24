@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/ai_intent/utils/types.py
+Filename: hermes/aidwear/ai_intent/utils/types.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-03-11
 Version: 1.0

@@ -140,12 +140,6 @@ class NiclaSenseMeDataContainer(DataContainer):
                     data_notes=self._data_notes[f"nicla_{nicla_name}"]["humidity"],
                 )
 
-    def get_fps(self) -> dict[str, float | None]:
-        return {
-            f"nicla_{nicla_name}": super()._get_fps(f"nicla_{nicla_name}", "toa_s")
-            for nicla_name in self._niclas.keys()
-        }
-
     def _define_data_notes(self) -> None:
         self._data_notes = {}
         for nicla_name in self._niclas["device_mapping"].keys():

@@ -1,5 +1,5 @@
-# AidWear
-Prosthesis controller, wrapped with [HERMES](https://github.com/maximyudayev/hermes) framework to communicate to an external AI controller for intent-based locomotion mode selection and fatigue-based support level moderation. Wrist-worn [Android GUI](https://github.com/kuleuven-emedia/aidwear-gui) provides human-in-the-loop control of the prosthesis and a hinge to interact with on-device AI models.
+# AidWear X-LEGs Stack
+Prosthesis controller, wrapped with [HERMES](https://github.com/maximyudayev/hermes) framework to communicate to an external AI controller for intent-based locomotion mode selection and fatigue-based support level moderation. Wrist-worn [Android GUI](https://github.com/kuleuven-emedia/aidwear-gui) provides human-in-the-loop control of the prosthesis and a hinge to interact with on-device AI models. [GUIDELINES.md](/GUIDELINES.md) provides conceptual quickstarter for human and agentic readers to get up to speed with extension of the stack.
 
 The prosthesis uses a hierarchical controller, with each layer controlling the layer below it:
 - High-level -> AI-based intent (ambulation mode) and fatigue forecasting
@@ -100,6 +100,7 @@ When running in [standalone CLI mode](#option-1-local-shell-terminal), press the
 | Sit-To-Stand | 2 |
 | Stair Ascent | 3 |
 | Stair Descent | 4 |
+| Hurdle | 5 |
 
 And enter a percentage of fatigue to manually update the level of assistance of the prosthesis controller by '%', followed by number 0-100, followed by 'Enter' (e.g. `$> %70`).
 

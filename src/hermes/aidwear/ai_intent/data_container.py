@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/ai_intent/data_container.py
+Filename: hermes/aidwear/ai_intent/data_container.py
 Author: Maxim Yudayev <maxim.yudayev@gmail.com>
 Date: 2026-03-16
 Version: 1.0

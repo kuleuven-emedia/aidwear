@@ -1,5 +1,5 @@
 """
-Filename: hermes/revalexo/ai_intent/utils/config.py
+Filename: hermes/aidwear/ai_intent/utils/config.py
 Author: Diwas Lamsal <diwaslamsal123@hotmail.com>
 Date: 2026-03-06
 Version: 1.0
