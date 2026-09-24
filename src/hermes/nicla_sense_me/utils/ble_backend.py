@@ -21,13 +21,13 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 
 from hermes.utils.time_utils import get_time
 
-from hermes.aidwear.prosthesis.utils.types import CalibrationEvent, CalibrationEventType
-
 from hermes.nicla_sense_me.utils.abstract_backend import NiclaBackend
 from hermes.nicla_sense_me.utils.types import (
     NiclaSampleSynchronized,
     NiclaSampleSynchronizedMetadata,
     NiclaOffsetsSynchronized,
+    CalibrationEvent,
+    CalibrationEventType,
 )
 
 

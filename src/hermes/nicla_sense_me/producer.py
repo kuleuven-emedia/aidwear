@@ -17,8 +17,7 @@ from hermes.utils.zmq_utils import PORT_BACKEND, PORT_SYNC_HOST, PORT_KILL
 from hermes.utils.time_utils import get_time
 from hermes.utils.types import LoggingSpec
 
-from hermes.nicla_sense_me.utils.types import NiclaData, NiclaPayloadMode
-from hermes.aidwear.prosthesis.utils.types import CalibrationEvent 
+from hermes.nicla_sense_me.utils.types import NiclaData, NiclaPayloadMode, CalibrationEvent 
 from .data_container import NiclaSenseMeDataContainer
 from .handler import NiclaSenseMeHandler
 

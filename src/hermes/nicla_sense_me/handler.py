@@ -20,8 +20,6 @@ from typing import Callable, Dict, Optional
 from hermes.utils.mp_utils import launch_handler
 from hermes.utils.time_utils import init_time
 
-from hermes.aidwear.prosthesis.utils.types import CalibrationEvent
-
 from hermes.nicla_sense_me.utils.abstract_backend import NiclaBackend
 from hermes.nicla_sense_me.utils.ble_backend import NiclaBleBackend
 from hermes.nicla_sense_me.utils.types import (
@@ -30,6 +28,7 @@ from hermes.nicla_sense_me.utils.types import (
     NiclaMappingNoPelvisAndFeet,
     NiclaOffsetsSynchronized,
     NiclaSampleSynchronized,
+    CalibrationEvent,
     calculate_nicla_sample_size,
 )
 

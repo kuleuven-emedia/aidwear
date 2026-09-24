@@ -33,7 +33,6 @@ from ..utils.utils import (
     config_can_linux,
     finalize_running_stats,
     update_running_stats,
-    wrap_angle,
 )
 from ..utils.types import (
     ProsthesisMotorMapping,
@@ -52,8 +51,6 @@ from ..utils.types import (
     NextModeSynchronized,
     StateTransition,
     PhaseEstimate,
-    CalibrationEvent,
-    CalibrationEventType,
     AbsoluteEncoderOffset,
     NiclaSamples,
 )
@@ -65,7 +62,8 @@ from hermes.nicla_sense_me.utils.types import (
     NiclaMappingFull,
     NiclaMappingNoPelvisAndFeet,
     NiclaConnectionType,
-    NiclaData,
+    CalibrationEvent,
+    CalibrationEventType,
     calculate_nicla_sample_size,
 )
 

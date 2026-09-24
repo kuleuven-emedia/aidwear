@@ -290,18 +290,6 @@ class MotorCommand:
     log_data: bytes
 
 
-class CalibrationEventType(Enum):
-    NICLA = "nicla"
-    ENCODER = "encoder"
-
-
-@dataclass
-class CalibrationEvent:
-    timestamp: float
-    sensor_type: CalibrationEventType
-    offsets: dict[str, float]
-
-
 @dataclass
 class AbsoluteEncoderOffset:
     reference: float
@@ -550,7 +538,7 @@ class WalkingParameters:
     swing_to_stance_th_gyr: float
     swing_to_stance_phase_threshold: float
     swing_to_stance_bending_dur: float
-
+    stance_to_swing_standing_dur: float
     inactivity_gyr_threshold: float
     inactivity_idle_transition_time: float
     inactivity_time_step: float

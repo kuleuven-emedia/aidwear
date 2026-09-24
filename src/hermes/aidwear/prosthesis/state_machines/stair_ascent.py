@@ -90,8 +90,9 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         self._knee_thigh_gain = 1.3
         self._gain_step = 0.01
 
+        self._ctx = ctx
         self._K = ctx.K
-        self._motor_latest_data = ctx._motor_latest_data
+        #self._motor_latest_data = ctx._motor_latest_data
         self._state_changed_queue = ctx.state_changed_queue
         self._phase_estimate_queue = ctx.phase_estimate_queue
         self._motor_command_queue = ctx.motor_command_queue
@@ -104,7 +105,7 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
             # --------------------------- Push-off -> Swing (T2) ---------------------------
             push_off_to_swing_th_gyr=0,  # θ̇_thigh,intact > 0 deg/s
             push_off_to_swing_th_roll=30,  # θ_thigh,intact > -30 deg
-            push_off_to_swing_pr_roll=-10,  # θ_thigh,pr < 5 deg
+            push_off_to_swing_pr_roll=-20,  # θ_thigh,pr < 5 deg # before it was -10
             # --------------------------- Swing -> Step-up (T3) ----------------------------
             swing_to_step_up_th_gyr=150,  # θ̇_thigh,pr > -12 deg/s
             swing_to_step_up_th_roll=20,  # θ_thigh,pr < -20 deg
@@ -118,6 +119,12 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
 
         # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         # activate_position_mode(self._ctx.handle, MotorId.KNEE)
+        
+        # Parameters for motor control
+        self._swing_stiffness = 0.1
+        self._swing_damping = 0.05
+        self._swing_current_limit_ma = 1000
+        self._knee_velocity = 0.0
 
         super(StairAscent, self).__init__()
 
@@ -144,11 +151,13 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
     def swing_to_step_up(self):
         # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         # activate_current_mode(self._ctx.handle, MotorId.KNEE)
+        self._target_knee_torque = -30
         print("step")
 
     def step_up_to_stance(self):
         # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         # activate_position_mode(self._ctx.handle, MotorId.KNEE)
+        self._target_knee_torque = 0
         print("stance")
 
     # T1: Stance -> Push-off
@@ -185,26 +194,56 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
     def on_enter_stance(self):
         # pm_set_position_must(self._ctx.handle, MotorId.ANKLE, int(0))
         # pm_set_position_must(self._ctx.handle, MotorId.KNEE, int(0))
+        self._ctx.epos.set_target_position(MotorId.ANKLE, int(0))
+        self._ctx.epos.set_target_position(MotorId.KNEE, int(0))
         self._step_up_dur = 0
         self._inactivity_dur = 0
 
     def on_enter_push_off(self):
         self._torque_ankle_reference = 0
+        self._ctx.epos.set_target_position(MotorId.KNEE, int(0))
 
     def on_enter_swing(self):
         # Start the reference from the measured knee angle at swing onset.
-        if abs(self._thigh_pr_gyr) < 150:
+        knee_error = self._knee_reference - self._knee_pr_roll
+
+        # TODO: Convert torque to current using a simple linear model.
+        self._target_knee_torque = (
+            self._swing_stiffness * knee_error
+            - self._swing_damping * self._knee_velocity
+        )
+
+        knee_current = ((self._target_knee_torque * 8) * 1000) / ((5 / 9) * self._knee_pr_roll + 10)
+        self._knee_current = int(
+            np.clip(
+                knee_current,
+                -self._swing_current_limit_ma,
+                self._swing_current_limit_ma,
+            )
+        )
+        self._ctx.epos.set_target_current(MotorId.KNEE, self._knee_current)
+    
+        if abs(self._thigh_pr_gyr) < 25:
             self._inactivity_dur += self._gain_step
         else:
             self._inactivity_dur = 0
         # TODO: add motor control logic for swing.
 
     def on_enter_step_up(self):
-        self._target_knee_torque = 80
-        self._torque_knee_reference = min(
-            self._target_knee_torque,
-            self._torque_knee_reference * (self._step_up_dur / self._param.risetime),
+        if self._step_up_dur < self._param.risetime:
+            self._torque_knee_reference = max(
+                self._target_knee_torque,
+                self._torque_knee_reference * (self._step_up_dur / self._param.risetime),
+            )
+        knee_current = ((self._target_knee_torque * 8) * 1000) / ((5 / 9) * self._knee_pr_roll + 10)
+        self._knee_current = int(
+            np.clip(
+                knee_current,
+                -self._swing_current_limit_ma,
+                self._swing_current_limit_ma,
+            )
         )
+        self._ctx.epos.set_target_current(MotorId.KNEE, self._knee_current)
         self._step_up_dur += self._gain_step
         # TODO: add motor control logic for step-up.
 

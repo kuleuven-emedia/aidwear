@@ -28,7 +28,7 @@ producer_specs:
         device_mapping: # for BLE connection type
           torso: "D8:4E:18:CC:F6:62"
           thigh_right: "4D:8B:11:D5:F2:46"
-          thigh_left: "A3:2F:AF:84:4E:1D"
+          thigh_left: "DF:CA:13:E0:E1:59"
           shank_right: "96:CD:19:11:5B:F7"
           shank_left: "D5:A0:BA:27:CA:09"
         service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"

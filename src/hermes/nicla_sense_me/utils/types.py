@@ -6,6 +6,9 @@ Version: 1.0
 Description: Nicla Sense ME specific data types.
 """
 
+
+from __future__ import annotations
+
 from typing import List
 from typing import Dict
 from multiprocessing import Value
@@ -20,6 +23,19 @@ import numpy as np
 from multiprocessing import Lock
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Lock as _Lock
+
+
+
+class CalibrationEventType(Enum):
+    NICLA = "nicla"
+    ENCODER = "encoder"
+
+
+@dataclass
+class CalibrationEvent:
+    timestamp: float
+    sensor_type: CalibrationEventType
+    offsets: dict[str, float]
 
 
 class NiclaLocation(Enum):

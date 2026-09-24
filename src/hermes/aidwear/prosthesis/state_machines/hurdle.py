@@ -38,9 +38,9 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
     # Transitions.
     cycle = (
         stance.to(stance, unless="is_stance_to_swing")
-        | stance.to(swing, cond="is_stance_to_swing")  # T1
+        | stance.to(swing, cond="is_stance_to_swing", on="stance_to_swing")  # T1
         | swing.to(swing, unless="is_swing_to_stance")
-        | swing.to(stance, cond="is_swing_to_stance")  # T2
+        | swing.to(stance, cond="is_swing_to_stance", on="swing_to_stance")  # T2
     )
 
     def __init__(self, ctx: ModeContext):
@@ -103,6 +103,12 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         #            ],
         #        )
 
+    def swing_to_stance(self):
+        print('swing -> stance')
+
+    def stance_to_swing(self):
+        print('stance -> swing')
+
     # Post-transition synchronous callback.
     def after_transition(self, event: Event, state: State):
         self._state_changed_queue.put(
@@ -111,12 +117,12 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
 
     # T1: Stance -> Swing
     def is_stance_to_swing(self):
-        if (
-            self._thigh_pr_roll > self._param.stance_to_swing_th_roll_pr
-            and self._thigh_pr_gyr > self._param.stance_to_swing_th_gyr_pr
-        ):
-            self._knee_swing_start = self._knee_pr_roll
-            self._thigh_swing_start = self._thigh_pr_roll
+        # if(
+        #     self._thigh_pr_roll > self._param.stance_to_swing_th_roll_pr
+        #     and self._thigh_pr_gyr > self._param.stance_to_swing_th_gyr_pr
+        # ):
+        #     self._knee_swing_start = self._knee_pr_roll
+        #     self._thigh_swing_start = self._thigh_pr_roll
 
         return (
             self._thigh_pr_roll > self._param.stance_to_swing_th_roll_pr
@@ -125,10 +131,6 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
 
     # T2: Swing -> Stance
     def is_swing_to_stance(self):
-        if self._thigh_pr_roll < self._param.swing_to_stance_th_roll_pr:
-            self._knee_reference = 0  # self._knee_swing_start
-            self._ankle_reference = 0
-
         return self._thigh_pr_roll < self._param.swing_to_stance_th_roll_pr
 
     # Actions.
@@ -136,6 +138,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         # Trigger new command writing if the reference changes.
         self._ctx.epos.set_target_position(MotorId.ANKLE, int(0))
         self._ctx.epos.set_target_position(MotorId.KNEE, int(0))
+        
 
     def on_enter_swing(self):
         # Trigger new command writing if the reference changes.
@@ -161,7 +164,7 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
         self._ctx.epos.set_target_current(MotorId.KNEE, knee_current)
 
         # ANKLE: stays in position mode at reference.
-        self._ctx.epos.set_target_position(MotorId.ANKLE, int(self._ankle_reference))
+        #self._ctx.epos.set_target_position(MotorId.ANKLE, int(self._ankle_reference))
 
     def _update_motors_reference(self):
         """
@@ -169,9 +172,10 @@ class Hurdle(StateMachine, ProsthesisStateMachine):
 
         Uses the absolute knee encoder as the actual joint angle in swing.
         """
-        thigh_change = self._thigh_pr_roll - self._thigh_swing_start
+        # thigh_change = self._thigh_pr_roll - self._thigh_swing_start
+        thigh_change = self._thigh_pr_roll - 20
         self._knee_reference = (
-            self._knee_swing_start + self._knee_thigh_gain * thigh_change
+            self._knee_thigh_gain * thigh_change # + self._knee_swing_start
         )
         self._ankle_reference = 0
 

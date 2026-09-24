@@ -27,8 +27,6 @@ from .controller import ProsthesisHandler
 from .data_container import ProsthesisDataContainer
 from .utils.types import (
     CLASS_TO_MODE,
-    CalibrationEvent,
-    CalibrationEventType,
     EncoderData,
     FatigueCommandSource,
     IntentCommandSource,
@@ -47,6 +45,8 @@ from hermes.nicla_sense_me.utils.types import (
     NiclaData,
     NiclaLocation,
     NiclaPayloadMode,
+    CalibrationEvent,
+    CalibrationEventType,
 )
 
 
