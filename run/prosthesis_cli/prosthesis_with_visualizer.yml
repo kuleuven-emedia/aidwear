@@ -53,7 +53,7 @@ consumer_specs:
               device_mapping:
                 torso: "D8:4E:18:CC:F6:62"
                 thigh_right: "4D:8B:11:D5:F2:46"
-                thigh_left: "A3:2F:AF:84:4E:1D"
+                thigh_left: "DF:CA:13:E0:E1:59"
                 shank_right: "96:CD:19:11:5B:F7"
                 shank_left: "D5:A0:BA:27:CA:09"
               gravity_scaling_factor: 4
@@ -98,7 +98,7 @@ pipeline_specs:
           device_mapping: # for BLE connection type
             torso: "D8:4E:18:CC:F6:62"
             thigh_right: "4D:8B:11:D5:F2:46"
-            thigh_left: "A3:2F:AF:84:4E:1D"
+            thigh_left: "DF:CA:13:E0:E1:59"
             shank_right: "96:CD:19:11:5B:F7"
             shank_left: "D5:A0:BA:27:CA:09"
           service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
@@ -144,7 +144,7 @@ pipeline_specs:
                 speed_switch: 900
                 speed_index: 900
                 current_threshold_ma: 1_000
-                home_offset_enc_ticks: -128_000
+                home_offset_enc_ticks: -130_000
                 home_position_coordinate: 0
               absolute_encoder_reference: 90.0
           sampling_rate_hz: 100
@@ -158,8 +158,6 @@ pipeline_specs:
           node_id: "cli_control"
           topics:
             - "intent"
-            - "fatigue"
-            - "event"
             - "safety_stop"
           settings:
             buf_len: 1_000

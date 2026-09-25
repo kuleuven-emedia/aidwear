@@ -87,7 +87,7 @@ class Walking(StateMachine, ProsthesisStateMachine):
         self._bending_dur = 0  # time_bending
         self._standing_dur = 0  # time_bending
         self._first_stride = WalkingFirstStrideEnum.NONE
-        self._swing_current_ma = 500
+        self._swing_current_ma = 1800
         self._knee_reference = 0
         self._knee_current = 0
 
@@ -118,11 +118,11 @@ class Walking(StateMachine, ProsthesisStateMachine):
             # --------------------------- Stance -> Swing (T4) ---------------------------
             stance_to_swing_th_gyr=25,
             stance_to_swing_phase_threshold=27,
-            stance_to_swing_standing_dur=0.15, 
+            stance_to_swing_standing_dur=0.7, 
             # --------------------------- Swing -> Stance (T5) ---------------------------
             swing_to_stance_th_gyr=25,
             swing_to_stance_phase_threshold=60,
-            swing_to_stance_bending_dur=0.2, 
+            swing_to_stance_bending_dur=0.35, 
             inactivity_gyr_threshold=25,  
             inactivity_idle_transition_time=2,
             inactivity_time_step=0.01,
@@ -169,7 +169,7 @@ class Walking(StateMachine, ProsthesisStateMachine):
 
     def stance_to_swing(self):
         self._new_target = True
-        print(f'stance -> swing --- transition consitions: R gyro: {self._thigh_pr_gyr:.2f} & phase: {self._phase:.2f}')
+        print(f'stance -> swing --- transition consitions: R gyro: {self._thigh_pr_gyr:.2f} & phase: {self._phase:.2f} stance_dur: {self._standing_dur:.2f}')
 
     # T1: Idle -> One Step
     def is_idle_to_one_step(self):
@@ -193,6 +193,7 @@ class Walking(StateMachine, ProsthesisStateMachine):
             self._thigh_pr_gyr > self._param.stance_to_swing_th_gyr
             and self._phase > self._param.stance_to_swing_phase_threshold
             and self._standing_dur > self._param.stance_to_swing_standing_dur
+            and self._phase < self._param.swing_to_stance_phase_threshold
             )
 
     # T5: Swing -> Stance
@@ -220,14 +221,13 @@ class Walking(StateMachine, ProsthesisStateMachine):
 
     def on_enter_stance(self):
         #self._ctx.epos.set_target_position(MotorId.ANKLE, int(0))
-        #self._ctx.epos.set_target_position(MotorId.KNEE, int(0))
         #trial
         self._standing_dur += 0.01  # time_bending
         if self._new_target == True:
             self._ctx.epos.set_target_current(MotorId.KNEE, int(-1000))
+            #self._ctx.epos.set_target_position(MotorId.KNEE, int(0))
             self._new_target = False
             self._bending_dur = 0
-
 
     def on_enter_swing(self):
         #self._update_swing_current()
@@ -235,22 +235,24 @@ class Walking(StateMachine, ProsthesisStateMachine):
         #self._ctx.epos.set_target_current(MotorId.KNEE, self._knee_current) 
         #trial
         self._bending_dur += 0.01
+        self._standing_dur = 0  # time_bending
+        self._update_swing_current()
         if self._new_target == True:
-            self._ctx.epos.set_target_current(MotorId.KNEE, int(500))
+            #self._ctx.epos.set_target_current(MotorId.KNEE, int(800))
+            self._ctx.epos.set_target_current(MotorId.KNEE, self._knee_current) 
             self._new_target = False
-            self._standing_dur = 0  # time_bending
-
-
-
+            
     def _update_swing_current(self):
         """Send a fresh knee current command each control cycle while in swing."""
         knee_angle = max(abs(float(self._knee_pr_roll)), 1.0)
-        knee_current = ((8.0 * 0.5) * 1000.0) / (
+        knee_current = ((8.0 * 3.5) * 1000.0) / (
             (5.0 / 9.0) * knee_angle + 10.0
-        )  # torque = .5
+        )  # torque = 3.5
         self._knee_current = int(
             np.clip(knee_current, -self._swing_current_ma, self._swing_current_ma)
         )
+        self._new_target = True
+
 
     def _kalman_phase_update(self, phase_raw):
         dt = 0.01  # sample period [s]
@@ -307,7 +309,7 @@ class Walking(StateMachine, ProsthesisStateMachine):
         # print(f"intact gyr: {self._thigh_intact_gyr:.2f}, pr gyr: {self._thigh_pr_gyr:.2f}, phase: {self._phase:.2f}")
 
         self._knee_pr_roll = encoder_samples[EncoderId.KNEE].angle
-        self._update_swing_current()
+        #self._update_swing_current()
 
         # Check if sensor values remain more or less constant.
         if abs(self._thigh_pr_gyr) < self._param.inactivity_gyr_threshold:

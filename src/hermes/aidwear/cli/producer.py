@@ -36,6 +36,7 @@ class CliProducer(Producer):
     ):
         self._input_queue: Queue[tuple[float, str]] = _["input_queue"]
         self._intent_sequence_id = 0
+        self._safety_sequence_id = 0
         self._is_pause = False
 
         def intent_callback(
@@ -113,7 +114,7 @@ class CliProducer(Producer):
                 if user_input[0] == "s":
                     self._is_pause = not self._is_pause
                     self._safety_stop_keyboard_mapper(
-                        toa_s, self._is_pause, process_time_s, self._event_sequence_id
+                        toa_s, self._is_pause, process_time_s, self._safety_sequence_id
                     )
                 else:
                     self._intent_keyboard_mapper[user_input](

@@ -88,7 +88,7 @@ class ProsthesisHandler:
         next_mode_synchronized: NextModeSynchronized,
         next_fatigue_synchronized: NextFatigueSynchronized,
         next_is_pause_synchronized: NextIsPauseSynchronized,
-        next_calibration_event: NextCalibrationSynchronized,
+        next_calibration_event_synchronized: NextCalibrationSynchronized,
         ref_time_s: float,
         is_ready_event: _Event,
         is_keep_data_event: _Event,
@@ -116,7 +116,7 @@ class ProsthesisHandler:
         self._next_mode = next_mode_synchronized
         self._next_fatigue = next_fatigue_synchronized
         self._next_is_pause = next_is_pause_synchronized
-        self._next_calibration_event = next_calibration_event
+        self._next_calibration_event = next_calibration_event_synchronized
 
         self._is_ready_event = is_ready_event
         self._is_keep_data_event = is_keep_data_event
@@ -373,7 +373,7 @@ class ProsthesisHandler:
                 with self._next_calibration_event.lock:
                     next_calibration = self._next_calibration_event.next_value.value
                     gui_cmd = GuiCommandType(next_calibration)
-                    self._next_calibration_event.next_value.value = GuiCommandType.NULL
+                    self._next_calibration_event.next_value.value = GuiCommandType.NULL.value
 
                 if user_input == "M" or gui_cmd == GuiCommandType.CALIBRATE_MOTORS:
                     await self._calibrate_motors()
@@ -395,7 +395,7 @@ class ProsthesisHandler:
             with self._next_calibration_event.lock:
                 next_calibration = self._next_calibration_event.next_value.value
                 gui_cmd = GuiCommandType(next_calibration)
-                self._next_calibration_event.next_value.value = GuiCommandType.NULL
+                self._next_calibration_event.next_value.value = GuiCommandType.NULL.value
 
             if user_input == "M" or gui_cmd == GuiCommandType.CALIBRATE_MOTORS:
                 res = await calibrate_fn()
