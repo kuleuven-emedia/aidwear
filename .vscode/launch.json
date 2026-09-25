@@ -37,6 +37,30 @@
             "justMyCode": false
         },
         {
+            "name": "Run Test",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "run/main.py",
+            "args": [
+                "-y",
+                "-o",
+                "data",
+                "-f",
+                "run/test/gui.yml",
+                "-e",
+                "project=Test",
+                "type=GUI",
+                "trial=0",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "subProcess": true,
+            "justMyCode": false
+        },
+        {
             "name": "Run Prosthesis w/ CLI",
             "type": "debugpy",
             "request": "launch",

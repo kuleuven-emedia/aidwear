@@ -1,10 +1,16 @@
-host_ip: "127.0.0.1"
+host_ip: "192.168.0.110"
 is_master_broker: True
 
-# TODO: specify slave connection to the prosthesis
 remote_subscriber_ips: []
-remote_publisher_ips: []
-connections: []
+remote_publisher_ips:
+  - "192.168.0.102"  # prosthesis
+connections:
+  - ssh_username: "aidwear"
+    ssh_host_ip: "192.168.0.102"
+    platform: "Linux"
+    config_filepath: "./run/prosthesis_cli/prosthesis.yml"
+    project_dir: "~/aidwear"
+    output_dir: "./data"
 
 is_remote_kill: False
 remote_kill_ip: null
@@ -42,7 +48,7 @@ consumer_specs:
           settings:
             niclas:
               buf_len: 100
-              sampling_rate_hz: 50
+              sampling_rate_hz: 90
               connection_type: "BLE" # BLE or I2C
               is_pelvis_and_feet: False
               device_mapping:
@@ -67,7 +73,7 @@ consumer_specs:
                   can_id: 1
                 ankle:
                   can_id: 2
-              sampling_rate_hz: 50
+              sampling_rate_hz: 100
               buf_len: 100
             telemetry:
               buf_len: 100

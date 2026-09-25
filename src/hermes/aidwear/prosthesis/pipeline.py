@@ -370,8 +370,8 @@ class ProsthesisPipeline(Pipeline):
                     output[f"nicla_{nicla_name}"][data_name] = data_getter(data)
                 self._publish(process_time_s=get_time(), new_data=output)
 
-        # # Motor command data.
-        # # TODO: verify.
+        # Motor command data.
+        # TODO: verify.
         # motor_command_data: dict[str, tuple[str, list[MotorCommand]]] = {
         #     motor_spec["can_id"]: (motor_name, [])
         #     for motor_name, motor_spec in self._motor_mapping.items()

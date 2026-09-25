@@ -1,0 +1,40 @@
+host_ip: "127.0.0.1"
+is_master_broker: True
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+logging_spec:
+  stream_period_s: 30
+  stream_hdf5: True
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+producer_specs:
+  - package: "aidwear.gui"
+    class: "PhoneGuiProducer"
+    node_id: "gui_control"
+    settings:
+      phone_ip: "192.168.0.111"
+      phone_port: 6000
+      buf_len: 1_000
+
+consumer_specs: []
+
+pipeline_specs: []
+      # data_in_specs:
+      #   - package: "aidwear.cli"
+      #     class: "CliProducer"
+      #     node_id: "cli_control"
+      #     topics:
+      #       - "intent"
+      #       - "fatigue"
+      #       - "event"
+      #       - "safety_stop"
+      #     settings:
+      #       buf_len: 1_000

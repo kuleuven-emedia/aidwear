@@ -1,12 +1,13 @@
-host_ip: "127.0.0.1"
-is_master_broker: True
+host_ip: "192.168.0.102"
+is_master_broker: False
 
-remote_subscriber_ips: []
+remote_subscriber_ips:
+  - "192.168.0.110"
 remote_publisher_ips: []
 connections: []
 
-is_remote_kill: False
-remote_kill_ip: null
+is_remote_kill: True
+remote_kill_ip: "192.168.0.110"
 
 logging_spec:
   stream_period_s: 30
@@ -22,6 +23,14 @@ producer_specs:
     settings:
       buf_len: 1_000
 
+  - package: "aidwear.gui"
+    class: "PhoneGuiProducer"
+    node_id: "gui_control"
+    settings:
+      phone_ip: "192.168.0.111"
+      phone_port: 6000
+      buf_len: 1_000
+
 consumer_specs: []
 
 pipeline_specs:
@@ -30,14 +39,14 @@ pipeline_specs:
     node_id: "prosthesis"
     settings:
       data_out_spec:
-        dt: 0.01
+        dt: 0.002
         base_assistance: 50.0
         is_immediate_mode_switch: True
         num_majority_vote: 5
         fsm_config_path: null # "run/fsm_config_default.yml"
         niclas:
           buf_len: 3_000
-          sampling_rate_hz: 50
+          sampling_rate_hz: 90
           connection_type: "BLE" # BLE or I2C
           is_pelvis_and_feet: False
           device_mapping: # for BLE connection type
@@ -92,7 +101,7 @@ pipeline_specs:
                 home_offset_enc_ticks: -130_000
                 home_position_coordinate: 0
               absolute_encoder_reference: 90.0
-          sampling_rate_hz: 50
+          sampling_rate_hz: 100
           buf_len: 3_000
         telemetry:
           buf_len: 30_000
@@ -103,8 +112,18 @@ pipeline_specs:
           node_id: "cli_control"
           topics:
             - "intent"
-            - "fatigue"
-            - "event"
             - "safety_stop"
           settings:
+            buf_len: 1_000
+
+        - package: "aidwear.gui"
+          class: "PhoneGuiProducer"
+          node_id: "gui_control"
+          topics:
+            - "intent"
+            - "safety_stop"
+            - "calibration_cmd"
+          settings:
+            phone_ip: "192.168.0.111"
+            phone_port: 6000
             buf_len: 1_000

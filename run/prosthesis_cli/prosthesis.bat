@@ -2,7 +2,7 @@
 call .venv\Scripts\activate
 @REM set PYTHONPATH="%cd%"
 
-set "FILE=.\run\prosthesis_standalone_cli\trial_auto_id.txt"
+set "FILE=.\run\prosthesis_cli\trial_auto_id.txt"
 if exist "%FILE%" (
     < "%FILE%" set /p "TRIAL_ID="
 ) else (
@@ -11,4 +11,4 @@ if exist "%FILE%" (
 set /a TRIAL_ID=%TRIAL_ID% + 1
 echo %TRIAL_ID% > "%FILE%"
 
-call hermes-cli -o .\data -f .\run\prosthesis_standalone_cli\prosthesis.yml -e project=AidwearStandaloneCli type=Test trial=%TRIAL_ID%
+call hermes-cli -o .\data -f .\run\prosthesis_cli\prosthesis.yml -e project=AidwearCli trial=%TRIAL_ID%

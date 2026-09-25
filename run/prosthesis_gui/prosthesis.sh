@@ -9,7 +9,7 @@ source .venv/bin/activate
 export PYTHONPATH="$(pwd):$PYTHONPATH"
 
 # Auto-increment the trial ID
-FILE="./run/prosthesis_standalone_cli/trial_auto_id.txt"
+FILE="./run/prosthesis_gui/trial_auto_id.txt"
 
 if [ -f "$FILE" ]; then
     trial_id=$(cat "$FILE")
@@ -20,4 +20,4 @@ trial_id=$((trial_id + 1))
 echo "$trial_id" > "$FILE"
 
 # Run the experiment
-hermes-cli -o ./data -f ./run/prosthesis_standalone_cli/prosthesis.yml -e project=AidwearStandaloneCli type=Test trial=$trial_id
+hermes-cli -o ./data -f ./run/prosthesis_gui/prosthesis.yml -e project=AidwearGui trial=$trial_id

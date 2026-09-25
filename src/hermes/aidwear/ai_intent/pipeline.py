@@ -174,15 +174,15 @@ class IntentClassifierPipeline(Pipeline):
         # Places incoming samples into the correct part of the pinned shared circular buffers,
         #   along with timestamps to record metadata of what data was ingested by the online model.
         # TODO: replace hardcoded topic strings with specifications from YAML file
-        if topic in ["exo", "wearable_nicla"]:
-            # Get only the IMU data from the Exo packets (arrive in unrolled Numpy arrays of potentially different length).
+        if topic in ["prosthesis", "niclas"]:
+            # Get only the IMU data from the prosthesis packets (arrive in unrolled Numpy arrays of potentially different length).
             #   Not all sensors may have a new value.
             # Nicla IMU feature order matching for the AI model is done in the config file (order of `modalities`), no extra steps needed.
-            # Flip Nicla axes orientations to match Awinda from RevalExo alpha.
+            # Flip Nicla axes orientations to match Awinda from AidWear alpha.
+            # TODO: verify the mapping.
             #   [x,y,z] -> [-y,-z,x] (shank left, thigh left)
             #   [x,y,z] -> [-y,z,-x] (shank right, thigh right)
             #   [x,y,z] -> [-y,x,z] (others)
-            # TODO: flip the thigh Niclas to match the lateral IMU placement in the alphs dataset.
             data: dict[NiclaLocation, tuple[torch.Tensor, torch.Tensor]] = dict(
                 map(
                     lambda items: (
