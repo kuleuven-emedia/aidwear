@@ -70,12 +70,6 @@ class IntentClassifierPipeline(Pipeline):
 
         # Define scaling factors for converting raw Nicla IMU data to real-world units.
         self._imu_type = data_out_spec["imu_type"]
-        self._gravity_scaling_factor = (
-            data_out_spec["gravity_scaling_factor"] * 9.80665 / 32768.0
-        )
-        self._gyroscope_scaling_factor = (
-            data_out_spec["gyroscope_scaling_factor"] / 32768.0
-        )
 
         # Instantiate shared memory torch circular buffers.
         self._torch_device: str = data_out_spec["device"]
@@ -179,10 +173,9 @@ class IntentClassifierPipeline(Pipeline):
             #   Not all sensors may have a new value.
             # Nicla IMU feature order matching for the AI model is done in the config file (order of `modalities`), no extra steps needed.
             # Flip Nicla axes orientations to match Awinda from AidWear alpha.
-            # TODO: verify the mapping.
-            #   [x,y,z] -> [-y,-z,x] (shank left, thigh left)
-            #   [x,y,z] -> [-y,z,-x] (shank right, thigh right)
-            #   [x,y,z] -> [-y,x,z] (others)
+            #   [x,y,z] -> [-y,-x,-z] (torso used in place of pelvis)
+            #   [x,y,z] -> [-y,-z,x] (thigh right, shank right)
+            #   [x,y,z] -> [-y,z,-x] (thigh left, shank left)
             data: dict[NiclaLocation, tuple[torch.Tensor, torch.Tensor]] = dict(
                 map(
                     lambda items: (
@@ -201,22 +194,21 @@ class IntentClassifierPipeline(Pipeline):
                                         ]
                                         else [1, 0, 2]
                                     ]
-                                    * [-1, -1, 1]
+                                    * [-1, 1, -1]
                                     if items[0]
                                     in [
                                         NiclaLocation.SHANK_LEFT,
                                         NiclaLocation.THIGH_LEFT,
                                     ]
                                     else (
-                                        [-1, 1, -1]
+                                        [-1, -1, 1]
                                         if items[0]
                                         in [
                                             NiclaLocation.SHANK_RIGHT,
                                             NiclaLocation.THIGH_RIGHT,
                                         ]
-                                        else [-1, 1, 1]
-                                    )
-                                    * self._gravity_scaling_factor,
+                                        else [-1, -1, -1]
+                                    ),
                                     items[1][NiclaDataGetMethods.gyroscope.name][
                                         [1, 2, 0]
                                         if items[0]
@@ -228,22 +220,21 @@ class IntentClassifierPipeline(Pipeline):
                                         ]
                                         else [1, 0, 2]
                                     ]
-                                    * [-1, -1, 1]
+                                    * [-1, 1, -1]
                                     if items[0]
                                     in [
                                         NiclaLocation.SHANK_LEFT,
                                         NiclaLocation.THIGH_LEFT,
                                     ]
                                     else (
-                                        [-1, 1, -1]
+                                        [-1, -1, 1]
                                         if items[0]
                                         in [
                                             NiclaLocation.SHANK_RIGHT,
                                             NiclaLocation.THIGH_RIGHT,
                                         ]
-                                        else [-1, 1, 1]
+                                        else [-1, -1, -1]
                                     )
-                                    * self._gyroscope_scaling_factor,
                                 ),
                                 axis=1,
                                 dtype=np.float32,
@@ -258,7 +249,11 @@ class IntentClassifierPipeline(Pipeline):
                         ),
                         filter(
                             lambda items: re.match(
-                                f"^nicla_(?!{'|'.join((NiclaLocation.TORSO.value,))})(.*)$",
+                                f"^nicla_(?!{'|'.join([
+                                    NiclaLocation.PELVIS.value,
+                                    NiclaLocation.FOOT_LEFT.value,
+                                    NiclaLocation.FOOT_RIGHT.value,
+                                ])})(.*)$",
                                 items[0],
                             ),
                             msg.items(),

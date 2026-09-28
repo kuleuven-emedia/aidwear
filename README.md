@@ -110,7 +110,7 @@ Ankle plantar flexion decrements EPOS drive incremental encoder. Knee extension 
 
 | Joint | Absolute encoder (°) | Motor offset (a.u.) |
 | - | - | - |
-| Knee | ... | ... |
+| Knee | ... | 0 |
 | Ankle | 38 | -128_000 |
 
 ### IMU sensor placement
@@ -120,18 +120,16 @@ Ankle plantar flexion decrements EPOS drive incremental encoder. Knee extension 
 </p>
 
 > [!IMPORTANT]
-> AidWear placed Xsens IMUs with LED up, frontally on mid-thigh, mid-foot, pelvis, and laterally above ankle. Integrated Nicla IMUs are all placed frontally. (1) Correct and consistent orientation must be ensured, (2) correct axes mapping from Nicla to Xsens must be done to match expected AI model inputs. Currently, handled by the [`IntentClassifierPipeline`](/src/hermes/aidwear/ai_intent/pipeline.py#L180-292).
+> AidWear training convention with Xsens IMUs is LED down; pelvis, laterally on mid-thigh and mid-foot. Integrated Nicla IMUs are all placed frontally. (1) Correct and consistent orientation must be ensured, (2) correct axes mapping from Nicla to Xsens must be done to match expected AI model inputs. Currently, handled by the [`IntentClassifierPipeline`](/src/hermes/aidwear/ai_intent/pipeline.py#L180-292).
 
 AidWear axes matching:
 | Location | Xsens | Nicla |
 | - | - | - |
-| Pelvis | [x,y,z] | [-y,x,z] |
-| Thigh right | [x,y,z] | [-y,z,-x] |
-| Thigh left | [x,y,z] | [-y,-z,x] |
-| Shank right | [x,y,z] | [-y,z,-x] |
-| Shank left | [x,y,z] | [-y,-z,x] |
-| Foot right | [x,y,z] | [-y,x,z] |
-| Foot left | [x,y,z] | [-y,x,z] |
+| Pelvis (torso IMU) | [x,y,z] | [-y,-x,-z] |
+| Thigh right | [x,y,z] | [-y,-z,x] |
+| Thigh left | [x,y,z] | [-y,z,-x] |
+| Shank right | [x,y,z] | [-y,-z,x] |
+| Shank left | [x,y,z] | [-y,z,-x] |
 
 ## Structure
 The prosthesis-specific files:
