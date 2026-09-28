@@ -25,6 +25,8 @@ class VisualizerGuiHandler:
         time_window_s: float = 5.0,
         draw_interval_s: float = 0.04,
         dark_mode: bool = True,
+        class_names: list[str] | None = None,
+        **kwargs,
     ) -> None:
         self.node_id = node_id
         self.data_queue = data_queue
@@ -33,6 +35,7 @@ class VisualizerGuiHandler:
         self.time_window_s = time_window_s
         self.draw_interval_s = draw_interval_s
         self.dark_mode = dark_mode
+        self.class_names = class_names
 
     def __call__(self) -> None:
         """Start the Qt event loop on the main thread of the GUI subprocess."""
@@ -53,10 +56,11 @@ class VisualizerGuiHandler:
             node_id=self.node_id,
             data_queue=self.data_queue,
             is_cleanup_event=self.is_cleanup_event,
-            is_windows_closed_event=self._is_windows_closed_event,
+            is_windows_closed_event=self.is_windows_closed_event,
             time_window_s=self.time_window_s,
             draw_interval_s=self.draw_interval_s,
             dark_mode=self.dark_mode,
+            class_names=self.class_names,
         )
         window.show()
 

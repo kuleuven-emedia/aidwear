@@ -94,6 +94,17 @@ class VisualizerConsumer(Consumer):
         self._is_windows_closed_event = Event()
         self._is_babykill_sent = False
 
+        # Extract class names if provided in ai_intent data_in_specs
+        class_names = None
+        for spec in data_in_specs:
+            settings = spec.get("settings", {})
+            if "classes" in settings and isinstance(settings["classes"], dict):
+                sorted_classes = sorted(
+                    settings["classes"].items(), key=lambda x: x[1]
+                )
+                class_names = [name for name, _ in sorted_classes]
+                break
+
         # Spawn the GUI subprocess via HERMES launch_handler
         self._gui_proc = Process(
             target=launch_handler,
@@ -106,6 +117,7 @@ class VisualizerConsumer(Consumer):
                 "time_window_s": self.time_window_s,
                 "draw_interval_s": self._draw_interval_s,
                 "dark_mode": self._dark_mode,
+                "class_names": class_names,
             },
         )
         self._gui_proc.start()
@@ -159,7 +171,7 @@ if __name__ == "__main__":
 
     # Feed simulated multimodal data for 2.5 seconds
     t0 = get_time()
-    for _ in range(500):
+    for step in range(500):
         t = get_time() - t0
         sample_time = t0 + t
         packet = {
@@ -207,6 +219,28 @@ if __name__ == "__main__":
             "encoder_ankle": {
                 "toa_s": np.array([sample_time]),
                 "angle": np.array([10.0 + 15.0 * np.sin(t * 2.5)]),
+            },
+            "intent": {
+                "predictions": np.array([[
+                    0.75 + 0.15 * np.sin(t * 1.5),
+                    0.05,
+                    0.08 + 0.05 * np.cos(t * 1.5),
+                    0.04,
+                    0.03,
+                    0.02,
+                    0.02,
+                    0.01,
+                ]]),
+                "logits": np.array([[2.5, -0.5, 0.2, -0.8, -1.0, -1.5, -1.5, -2.0]]),
+                "toa_s": np.array([[sample_time]]),
+                "compute_time_s": np.array([[0.0125 + 0.003 * np.sin(t * 5.0)]]),
+                "sequence_id": np.array([[step]], dtype=np.uint32),
+            },
+            "mode": {
+                "toa_s": np.array([[sample_time]]),
+                "mode": np.array([[1 if int(t) % 4 != 2 else 3]], dtype=np.uint8),
+                "sequence_id": np.array([[step]], dtype=np.uint32),
+                "source": np.array([[2]], dtype=np.uint8),
             },
         }
         vis._process_data("prosthesis", packet)
