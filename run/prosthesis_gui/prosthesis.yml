@@ -38,7 +38,7 @@ pipeline_specs:
     node_id: "prosthesis"
     settings:
       data_out_spec:
-        dt: 0.002
+        dt: 0.01
         base_assistance: 50.0
         is_immediate_mode_switch: True
         num_majority_vote: 5

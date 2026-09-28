@@ -8,7 +8,8 @@ connections:
   - ssh_username: "aidwear"
     ssh_host_ip: "192.168.0.102"
     platform: "Linux"
-    config_filepath: "./run/prosthesis_cli/prosthesis.yml"
+    pre_hook: "./run/prehook_prosthesis.sh"
+    config_filepath: "./run/prosthesis_ai/prosthesis_with_ai.yml"
     project_dir: "~/aidwear"
     output_dir: "./data"
 
@@ -78,5 +79,34 @@ consumer_specs:
               buf_len: 100
             telemetry:
               buf_len: 100
+
+        - package: "aidwear.ai_intent"
+          class: "IntentClassifierPipeline"
+          topic: "ai_intent"
+          topics:
+            - "intent"
+          settings:
+            buf_len: 100
+            horizons: [0]
+            classes:
+              Level-Ground Walking: 0
+              Hurdles: 1
+              Stair Ascent: 2
+              Stair Descent: 3
+              Cross Country: 4
+              Ladder: 5
+              Slope Ascent: 6
+              Slope Descent: 7
+              Wobbly Steps: 8
+              Step Over: 9
+              Bench: 10
+              Balance Beam: 11
+              High-step": 12
+            in_streams:
+              - "pelvis"
+              - "thigh_right"
+              - "thigh_left"
+              - "shank_right"
+              - "shank_left"
 
 pipeline_specs: []
