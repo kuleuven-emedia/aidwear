@@ -239,11 +239,13 @@ class NiclaSampleSynchronized:
         if name is not None:
             assert lock is not None
             self._lock = lock
-            self._shm = SharedMemory(name=name, size=size)
+            self._shm = SharedMemory(name=name, size=size)  # NOTE: creates a 4096 shared mem
+            self.size = size
         else:
             self._lock = Lock()
             self._shm = SharedMemory(create=True, size=size)
             self._shm.buf[:] = bytes(size)
+            self.size = size
 
     @classmethod
     def from_metadata(
@@ -257,7 +259,7 @@ class NiclaSampleSynchronized:
 
     def get_metadata(self) -> NiclaSampleSynchronizedMetadata:
         return NiclaSampleSynchronizedMetadata(
-            size=self._shm.size,
+            size=self.size,
             name=self._shm.name,
             lock=self._lock,
         )
@@ -265,12 +267,12 @@ class NiclaSampleSynchronized:
     @property
     def data(self) -> NiclaData:
         with self._lock:
-            return NiclaData.from_bytes(data=self._shm.buf)
+            return NiclaData.from_bytes(data=self._shm.buf[:self.size])
 
     @data.setter
     def data(self, raw_data: bytearray) -> None:
         with self._lock:
-            self._shm.buf[:] = raw_data
+            self._shm.buf[:self.size] = raw_data
 
     def close(self) -> None:
         self._shm.close()

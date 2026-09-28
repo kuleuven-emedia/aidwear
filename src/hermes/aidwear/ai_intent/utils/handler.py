@@ -247,14 +247,14 @@ class IntentClassifierHandler:
             self._counter += 1
 
             # Print the prediction to the CLI.
-            # parts = [
-            #     f"[t={end_time_s:.2f}s | {(end_time_s - start_time_s) * 1000:.1f}ms]"
-            # ]
-            # for i, h in enumerate(self._config.prediction_horizons):
-            #     pred = predictions[i].item()
-            #     label = self._num_to_label[pred]
-            #     parts.append(f"h={h}s: {label}")
-            # print(parts, flush=True)
+            parts = [
+                f"[t={end_time_s:.2f}s | {(end_time_s - start_time_s) * 1000:.1f}ms]"
+            ]
+            for i, h in enumerate(self._config.prediction_horizons):
+                pred = predictions[i].item()
+                label = self._num_to_label[pred]
+                parts.append(f"h={h}s: {label}")
+            print(parts, flush=True)
 
         self._is_finished_event.set()
         print("PyTorch subprocess finished processing loop.", flush=True)

@@ -70,6 +70,12 @@ class IntentClassifierPipeline(Pipeline):
 
         # Define scaling factors for converting raw Nicla IMU data to real-world units.
         self._imu_type = data_out_spec["imu_type"]
+        self._gravity_scaling_factor = (
+            data_out_spec["gravity_scaling_factor"] * 9.80665 / 32768.0
+        )
+        self._gyroscope_scaling_factor = (
+            data_out_spec["gyroscope_scaling_factor"] / 32768.0
+        )
 
         # Instantiate shared memory torch circular buffers.
         self._torch_device: str = data_out_spec["device"]
@@ -176,91 +182,114 @@ class IntentClassifierPipeline(Pipeline):
             #   [x,y,z] -> [-y,-x,-z] (torso used in place of pelvis)
             #   [x,y,z] -> [-y,-z,x] (thigh right, shank right)
             #   [x,y,z] -> [-y,z,-x] (thigh left, shank left)
-            data: dict[NiclaLocation, tuple[torch.Tensor, torch.Tensor]] = dict(
-                map(
-                    lambda items: (
-                        items[0],
-                        torch.from_numpy(
-                            np.concatenate(
-                                (
-                                    items[1][NiclaDataGetMethods.acceleration.name][
-                                        [1, 2, 0]
-                                        if items[0]
-                                        in [
-                                            NiclaLocation.SHANK_LEFT,
-                                            NiclaLocation.SHANK_RIGHT,
-                                            NiclaLocation.THIGH_LEFT,
-                                            NiclaLocation.THIGH_RIGHT,
-                                        ]
-                                        else [1, 0, 2]
-                                    ]
-                                    * [-1, 1, -1]
-                                    if items[0]
-                                    in [
-                                        NiclaLocation.SHANK_LEFT,
-                                        NiclaLocation.THIGH_LEFT,
-                                    ]
-                                    else (
-                                        [-1, -1, 1]
-                                        if items[0]
-                                        in [
-                                            NiclaLocation.SHANK_RIGHT,
-                                            NiclaLocation.THIGH_RIGHT,
-                                        ]
-                                        else [-1, -1, -1]
-                                    ),
-                                    items[1][NiclaDataGetMethods.gyroscope.name][
-                                        [1, 2, 0]
-                                        if items[0]
-                                        in [
-                                            NiclaLocation.SHANK_LEFT,
-                                            NiclaLocation.SHANK_RIGHT,
-                                            NiclaLocation.THIGH_LEFT,
-                                            NiclaLocation.THIGH_RIGHT,
-                                        ]
-                                        else [1, 0, 2]
-                                    ]
-                                    * [-1, 1, -1]
-                                    if items[0]
-                                    in [
-                                        NiclaLocation.SHANK_LEFT,
-                                        NiclaLocation.THIGH_LEFT,
-                                    ]
-                                    else (
-                                        [-1, -1, 1]
-                                        if items[0]
-                                        in [
-                                            NiclaLocation.SHANK_RIGHT,
-                                            NiclaLocation.THIGH_RIGHT,
-                                        ]
-                                        else [-1, -1, -1]
-                                    )
-                                ),
-                                axis=1,
-                                dtype=np.float32,
-                            )
-                        ),
-                        torch.from_numpy(items[1]["toa_s"]),
-                    ),
-                    map(
-                        lambda items: (
-                            NiclaLocation(items[0].split("nicla_")[1]),
-                            items[1],
-                        ),
-                        filter(
-                            lambda items: re.match(
-                                f"^nicla_(?!{'|'.join([
-                                    NiclaLocation.PELVIS.value,
-                                    NiclaLocation.FOOT_LEFT.value,
-                                    NiclaLocation.FOOT_RIGHT.value,
-                                ])})(.*)$",
-                                items[0],
-                            ),
-                            msg.items(),
-                        ),
-                    ),
+            
+            #   [x,y,z] -> [-y,x,z] (pelvis)
+            filtered_niclas = {
+                k: v for k, v in msg.items()
+                if re.match(
+                    f"^nicla_(?!{'|'.join([
+                        NiclaLocation.PELVIS.value,
+                        NiclaLocation.FOOT_LEFT.value,
+                        NiclaLocation.FOOT_RIGHT.value,
+                    ])})(.*)$",
+                    k
                 )
-            )
+            }
+
+            enum_mapped_niclas = {
+                NiclaLocation(k.split("nicla_")[1]): v
+                for k, v in filtered_niclas.items()
+            }
+
+            data: dict[NiclaLocation, tuple[torch.Tensor, torch.Tensor]] = {
+                k: (
+                    torch.from_numpy( 
+                        np.concatenate(
+                            (
+                                v[NiclaDataGetMethods.acceleration.name][:, [1, 0, 2]]
+                                * self._gravity_scaling_factor
+                                * [-1, 1, 1],
+                                v[NiclaDataGetMethods.gyroscope.name][:, [1, 0, 2]]
+                                * self._gyroscope_scaling_factor
+                                * [-1, 1, 1]
+                            ),
+                            axis=1,
+                            dtype=np.float32,
+                        )
+                    ),
+                    torch.from_numpy(v["toa_s"]),
+                )
+                for k, v in enum_mapped_niclas.items()
+            }
+
+            # data: dict[NiclaLocation, tuple[torch.Tensor, torch.Tensor]] = {
+            #     k: (
+            #         torch.from_numpy( 
+            #             np.concatenate(
+            #                 (
+            #                     v[NiclaDataGetMethods.acceleration.name][:,
+            #                         [1, 2, 0]
+            #                         if k
+            #                         in [
+            #                             NiclaLocation.SHANK_LEFT,
+            #                             NiclaLocation.SHANK_RIGHT,
+            #                             NiclaLocation.THIGH_LEFT,
+            #                             NiclaLocation.THIGH_RIGHT,
+            #                         ]
+            #                         else [1, 0, 2]
+            #                     ]
+            #                     * self._gravity_scaling_factor
+            #                     * ([-1, 1, -1]
+            #                     if k
+            #                     in [
+            #                         NiclaLocation.SHANK_LEFT,
+            #                         NiclaLocation.THIGH_LEFT,
+            #                     ]
+            #                     else (
+            #                         [-1, -1, 1]
+            #                         if k
+            #                         in [
+            #                             NiclaLocation.SHANK_RIGHT,
+            #                             NiclaLocation.THIGH_RIGHT,
+            #                         ]
+            #                         else [-1, 1, 1]
+            #                     )),
+            #                     v[NiclaDataGetMethods.gyroscope.name][:,
+            #                         [1, 2, 0]
+            #                         if k
+            #                         in [
+            #                             NiclaLocation.SHANK_LEFT,
+            #                             NiclaLocation.SHANK_RIGHT,
+            #                             NiclaLocation.THIGH_LEFT,
+            #                             NiclaLocation.THIGH_RIGHT,
+            #                         ]
+            #                         else [1, 0, 2]
+            #                     ]
+            #                     * self._gyroscope_scaling_factor
+            #                     * ([-1, 1, -1]
+            #                     if k
+            #                     in [
+            #                         NiclaLocation.SHANK_LEFT,
+            #                         NiclaLocation.THIGH_LEFT,
+            #                     ]
+            #                     else (
+            #                         [-1, -1, 1]
+            #                         if k
+            #                         in [
+            #                             NiclaLocation.SHANK_RIGHT,
+            #                             NiclaLocation.THIGH_RIGHT,
+            #                         ]
+            #                         else [-1, 1, 1]
+            #                     )),
+            #                 ),
+            #                 axis=1,
+            #                 dtype=np.float32,
+            #             )
+            #         ),
+            #         torch.from_numpy(v["toa_s"]),
+            #     )
+            #     for k, v in enum_mapped_niclas.items()
+            # }
 
             for k, v in data.items():
                 self._input_buffer[ModalityType.RAW_IMU][k].put(*v)
@@ -327,7 +356,7 @@ class IntentClassifierPipeline(Pipeline):
                     "sequence_id": np.array([[result.counter]], dtype=np.uint32),
                 }
             }
-            self._publish(process_time_s=process_time_s, new_data=NewData(**data))
+            self._publish(process_time_s=process_time_s, new_data=data)
         except Empty:
             if self._is_finished_event.is_set():
                 self._notify_no_more_data_out()

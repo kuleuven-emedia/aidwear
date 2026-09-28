@@ -78,8 +78,8 @@ def preprocess_async_imu(
     def _copy_logic(windows: List[Tensor], dev_id: int):
         start_acc = 3 * dev_id
         end_acc = 3 * (dev_id + 1)
-        start_gyr = start_acc + 21
-        end_gyr = end_acc + 21
+        start_gyr = start_acc + 15
+        end_gyr = end_acc + 15
 
         staging_tensor[: windows[0].shape[0], start_acc:end_acc].copy_(
             windows[0][:, :3], non_blocking=True

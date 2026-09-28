@@ -1,0 +1,29 @@
+prediction_horizons: [0]
+
+checkpoint: "../weights/DCL_AidWear_Lower_Body_5_IMU.pt"
+
+modalities:
+  raw_imu:
+    receptive_field: 180
+    column_patterns:
+      # Lower body accelerometer channels
+      - "acc_Pelvis_*"
+      - "acc_*_Upper_Leg_*"
+      - "acc_*_Lower_Leg_*"
+      # Lower body gyroscope channels
+      - "gyro_Pelvis_*"
+      - "gyro_*_Upper_Leg_*"
+      - "gyro_*_Lower_Leg_*"
+    eval_transforms: []
+
+models:
+  raw_imu:
+    name: DeepConvLSTM
+    params:
+      channels: 30
+      window_size: 180
+      conv_kernels: 64
+      conv_kernel_size: 11
+      lstm_units: 1024
+      lstm_layers: 1
+      dropout: 0.5

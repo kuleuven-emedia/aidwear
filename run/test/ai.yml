@@ -1,0 +1,144 @@
+host_ip: "127.0.0.1"
+is_master_broker: True
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+logging_spec:
+  stream_period_s: 30
+  stream_hdf5: True
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+producer_specs:
+  - package: "nicla_sense_me"
+    class: "NiclaSenseMeProducer"
+    node_id: "niclas"
+    settings:
+      niclas:
+        buf_len: 10_000
+        sampling_rate_hz: 90
+        connection_type: "BLE" # BLE or I2C
+        is_pelvis_and_feet: False
+        device_mapping: # for BLE connection type
+          torso: "D8:4E:18:CC:F6:62"
+          thigh_right: "4D:8B:11:D5:F2:46"
+          thigh_left: "DF:CA:13:E0:E1:59"
+          shank_right: "96:CD:19:11:5B:F7"
+          shank_left: "D5:A0:BA:27:CA:09"
+        service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+        char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+        gravity_scaling_factor: 4
+        gyroscope_scaling_factor: 500
+        is_acc: True
+        is_gyr: True
+        is_mag: False
+        is_euler: True
+        is_quat: False
+        is_temp: False
+        is_baro: False
+        is_hum: False
+
+consumer_specs: []
+
+pipeline_specs:
+  - package: "aidwear.ai_intent"
+    class: "IntentClassifierPipeline"
+    node_id: "ai_intent"
+    settings:
+      data_out_spec:
+        config_path: "src/hermes/aidwear/ai_intent/utils/configs/config.yml"
+        device: "cpu"
+        imu_type: "nicla"
+        buf_len: 10_000
+        gravity_scaling_factor: 4
+        gyroscope_scaling_factor: 500
+        module_params:
+          prediction_horizons: [0]
+          output_classes:
+            Level-Ground Walking: 0
+            Hurdles: 1
+            Stair Ascent: 2
+            Stair Descent: 3
+            Cross Country: 4
+            Ladder: 5
+            Slope Ascent: 6
+            Slope Descent: 7
+            Wobbly Steps: 8
+            Step Over: 9
+            Bench: 10
+            Balance Beam: 11
+            High-step": 12
+          input_features:
+            raw_imu:
+              num_features:
+                - 180
+                - 30
+              dtype: "float32"
+        modalities:
+          raw_imu:
+            torso:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+
+      data_in_specs:
+        - package: "nicla_sense_me"
+          class: "NiclaSenseMeProducer"
+          node_id: "niclas"
+          topics:
+            - "nicla_torso"
+            - "nicla_thigh_right"
+            - "nicla_thigh_left"
+            - "nicla_shank_right"
+            - "nicla_shank_left"
+          settings:
+            niclas:
+              buf_len: 10_000
+              sampling_rate_hz: 90
+              connection_type: "BLE" # BLE or I2C
+              is_pelvis_and_feet: False
+              device_mapping:  # for BLE connection type
+                torso: "D8:4E:18:CC:F6:62"
+                thigh_right: "4D:8B:11:D5:F2:46"
+                thigh_left: "DF:CA:13:E0:E1:59"
+                shank_right: "96:CD:19:11:5B:F7"
+                shank_left: "D5:A0:BA:27:CA:09"
+              service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+              char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+              gravity_scaling_factor: 4
+              gyroscope_scaling_factor: 500
+              is_acc    : True
+              is_gyr    : True
+              is_mag    : False
+              is_euler  : True
+              is_quat   : False
+              is_temp   : False
+              is_baro   : False
+              is_hum    : False

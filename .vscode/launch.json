@@ -161,10 +161,11 @@
             "cwd": "${workspaceFolder}",
             "program": "run/main.py",
             "args": [
+                "-y",
                 "-o",
                 "data",
                 "-f",
-                "run/ai_test/test_intent_imu.yml",
+                "run/test/ai.yml",
                 "-e",
                 "project=AidwearTestAiImu",
                 "type=Test",
