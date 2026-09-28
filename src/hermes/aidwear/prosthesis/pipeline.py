@@ -274,6 +274,8 @@ class ProsthesisPipeline(Pipeline):
                 self._next_fatigue.source.value = FatigueCommandSource.AI.value
 
     def _generate_data(self) -> None:
+        output = {}
+
         # Motor data.
         motor_data_dict: dict[MotorId, tuple[str, list[ServoMotorData]]] = {
             MotorId(motor_spec["can_id"]): (motor_name, [])
@@ -284,30 +286,27 @@ class ProsthesisPipeline(Pipeline):
             motor_data_dict[can_id][1].append(motor_sample)
         for motor_name, motor_data in motor_data_dict.values():
             if motor_data:
-                output = {
-                    f"motor_{motor_name}": {
-                        "toa_s": np.array(
-                            [list(map(lambda m: m.timestamp, motor_data))],
-                            dtype=np.float64,
-                        ).transpose((1, 0)),
-                        "position": np.array(
-                            [list(map(lambda m: m.position, motor_data))],
-                            dtype=np.float32,
-                        ).transpose((1, 0)),
-                        "velocity": np.array(
-                            [list(map(lambda m: m.velocity, motor_data))],
-                            dtype=np.float32,
-                        ).transpose((1, 0)),
-                        "current": np.array(
-                            [list(map(lambda m: m.current, motor_data))],
-                            dtype=np.float32,
-                        ).transpose((1, 0)),
-                        "error": np.array(
-                            [list(map(lambda m: m.error, motor_data))], dtype=np.uint8
-                        ).transpose((1, 0)),
-                    }
+                output[f"motor_{motor_name}"] = {
+                    "toa_s": np.array(
+                        [list(map(lambda m: m.timestamp, motor_data))],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "position": np.array(
+                        [list(map(lambda m: m.position, motor_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                    "velocity": np.array(
+                        [list(map(lambda m: m.velocity, motor_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                    "current": np.array(
+                        [list(map(lambda m: m.current, motor_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                    "error": np.array(
+                        [list(map(lambda m: m.error, motor_data))], dtype=np.uint8
+                    ).transpose((1, 0)),
                 }
-                self._publish(process_time_s=get_time(), new_data=output)
 
         # Absolute encoder data.
         encoder_data_dict: dict[EncoderId, tuple[str, list[EncoderData]]] = {
@@ -319,23 +318,20 @@ class ProsthesisPipeline(Pipeline):
             encoder_data_dict[encoder_id][1].append(encoder_sample)
         for motor_name, encoder_data in encoder_data_dict.values():
             if encoder_data:
-                output = {
-                    f"encoder_{motor_name}": {
-                        "toa_s": np.array(
-                            [list(map(lambda sample: sample.timestamp, encoder_data))],
-                            dtype=np.float64,
-                        ).transpose((1, 0)),
-                        "angle": np.array(
-                            [list(map(lambda sample: sample.angle, encoder_data))],
-                            dtype=np.float32,
-                        ).transpose((1, 0)),
-                        "is_error": np.array(
-                            [list(map(lambda sample: sample.is_error, encoder_data))],
-                            dtype=np.bool,
-                        ).transpose((1, 0)),
-                    }
+                output[f"encoder_{motor_name}"] = {
+                    "toa_s": np.array(
+                        [list(map(lambda sample: sample.timestamp, encoder_data))],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "angle": np.array(
+                        [list(map(lambda sample: sample.angle, encoder_data))],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
+                    "is_error": np.array(
+                        [list(map(lambda sample: sample.is_error, encoder_data))],
+                        dtype=np.bool,
+                    ).transpose((1, 0)),
                 }
-                self._publish(process_time_s=get_time(), new_data=output)
 
         # Nicla data.
         nicla_data: dict[str, list[NiclaData]] = {
@@ -348,27 +344,24 @@ class ProsthesisPipeline(Pipeline):
             nicla_name, toa_s, nicla_sample = self._nicla_data_queue.get_nowait()
             nicla_toa[nicla_name].append(toa_s)
             nicla_data[nicla_name].append(NiclaData.from_bytes(nicla_sample))
-        for nicla_name, data in nicla_data.items():
+        for name, data in nicla_data.items():
             if data:
-                output = {
-                    f"nicla_{nicla_name}": {
-                        "toa_s": np.array(
-                            [nicla_toa[nicla_name]], dtype=np.float64
-                        ).transpose((1, 0)),
-                        "sequence_id": np.array(
-                            [list(map(lambda n: n.sequence_id, data))], dtype=np.uint32
-                        ).transpose((1, 0)),
-                        "timestamp": np.array(
-                            [list(map(lambda n: n.timestamp, data))], dtype=np.uint32
-                        ).transpose((1, 0)),
-                    }
+                output[f"nicla_{name}"] = {
+                    "toa_s": np.array(
+                        [nicla_toa[name]], dtype=np.float64
+                    ).transpose((1, 0)),
+                    "sequence_id": np.array(
+                        [list(map(lambda n: n.sequence_id, data))], dtype=np.uint32
+                    ).transpose((1, 0)),
+                    "timestamp": np.array(
+                        [list(map(lambda n: n.timestamp, data))], dtype=np.uint32
+                    ).transpose((1, 0)),
                 }
                 for (
                     data_name,
                     data_getter,
                 ) in self._nicla_payload_mode.get_data_getters().items():
-                    output[f"nicla_{nicla_name}"][data_name] = data_getter(data)
-                self._publish(process_time_s=get_time(), new_data=output)
+                    output[f"nicla_{name}"][data_name] = data_getter(data)
 
         # Motor command data.
         # TODO: verify.
@@ -414,63 +407,57 @@ class ProsthesisPipeline(Pipeline):
         while not self._mode_changed_queue.empty():
             mode_transitions.append(self._mode_changed_queue.get_nowait())
         if mode_transitions:
-            output = {
-                "mode": {
-                    "toa_s": np.array(
-                        [list(map(lambda m: m.timestamp, mode_transitions))],
-                        dtype=np.float64,
-                    ).transpose((1, 0)),
-                    "mode": np.array(
-                        [list(map(lambda m: m.mode, mode_transitions))], dtype=np.uint8
-                    ).transpose((1, 0)),
-                    "sequence_id": np.array(
-                        [list(map(lambda m: m.sequence_id, mode_transitions))],
-                        dtype=np.uint32,
-                    ).transpose((1, 0)),
-                    "source": np.array(
-                        [list(map(lambda m: m.source, mode_transitions))],
-                        dtype=np.uint8,
-                    ).transpose((1, 0)),
-                }
+            output["mode"] = {
+                "toa_s": np.array(
+                    [list(map(lambda m: m.timestamp, mode_transitions))],
+                    dtype=np.float64,
+                ).transpose((1, 0)),
+                "mode": np.array(
+                    [list(map(lambda m: m.mode, mode_transitions))], dtype=np.uint8
+                ).transpose((1, 0)),
+                "sequence_id": np.array(
+                    [list(map(lambda m: m.sequence_id, mode_transitions))],
+                    dtype=np.uint32,
+                ).transpose((1, 0)),
+                "source": np.array(
+                    [list(map(lambda m: m.source, mode_transitions))],
+                    dtype=np.uint8,
+                ).transpose((1, 0)),
             }
-            self._publish(process_time_s=get_time(), new_data=output)
 
         # Mid-level state.
         state_transitions: list[StateTransition] = []
         while not self._state_changed_queue.empty():
             state_transitions.append(self._state_changed_queue.get_nowait())
         if state_transitions:
-            output = {
-                "state": {
-                    "toa_s": np.array(
-                        [list(map(lambda s: s.timestamp, state_transitions))],
-                        dtype=np.float64,
-                    ).transpose((1, 0)),
-                    "state": np.array(
-                        [list(map(lambda s: s.state, state_transitions))],
-                        dtype=np.uint8,
-                    ).transpose((1, 0)),
-                }
+            output["state"] = {
+                "toa_s": np.array(
+                    [list(map(lambda s: s.timestamp, state_transitions))],
+                    dtype=np.float64,
+                ).transpose((1, 0)),
+                "state": np.array(
+                    [list(map(lambda s: s.state, state_transitions))],
+                    dtype=np.uint8,
+                ).transpose((1, 0)),
             }
-            self._publish(process_time_s=get_time(), new_data=output)
 
         # Gait cycle phase.
         phase_estimates: list[PhaseEstimate] = []
         while not self._phase_estimate_queue.empty():
             phase_estimates.append(self._phase_estimate_queue.get_nowait())
         if phase_estimates:
-            output = {
-                "phase": {
-                    "toa_s": np.array(
-                        [list(map(lambda p: p.timestamp, phase_estimates))],
-                        dtype=np.float64,
-                    ).transpose((1, 0)),
-                    "phase": np.array(
-                        [list(map(lambda p: p.phase, phase_estimates))],
-                        dtype=np.float32,
-                    ).transpose((1, 0)),
-                }
+            output["phase"] = {
+                "toa_s": np.array(
+                    [list(map(lambda p: p.timestamp, phase_estimates))],
+                    dtype=np.float64,
+                ).transpose((1, 0)),
+                "phase": np.array(
+                    [list(map(lambda p: p.phase, phase_estimates))],
+                    dtype=np.float32,
+                ).transpose((1, 0)),
             }
+
+        if output:
             self._publish(process_time_s=get_time(), new_data=output)
 
         if (
@@ -483,6 +470,8 @@ class ProsthesisPipeline(Pipeline):
             and self._phase_estimate_queue.empty()
             # and self._motor_command_queue.empty()
         ):
+            output = {}
+
             # Calibration event data.
             calibration_data: dict[CalibrationEventType, list[CalibrationEvent]] = {
                 CalibrationEventType.NICLA: [],
@@ -494,58 +483,41 @@ class ProsthesisPipeline(Pipeline):
                     calibration_event
                 )
             if calibration_data[CalibrationEventType.NICLA]:
-                output = {
-                    "nicla_calibration": {
-                        "toa_s": np.array(
-                            [
-                                list(
-                                    map(
-                                        lambda c: c.timestamp,
-                                        calibration_data[CalibrationEventType.NICLA],
-                                    )
-                                )
-                            ],
-                            dtype=np.float64,
-                        ).transpose((1, 0)),
-                        "offsets": np.array(
-                            list(
-                                map(
-                                    lambda c: list(c.offsets.values()),
-                                    calibration_data[CalibrationEventType.NICLA],
-                                )
-                            ),
-                            dtype=np.float32,
-                        ).transpose((1, 0)),
-                    }
+                output["nicla_calibration"] = {
+                    "toa_s": np.array(
+                        [[
+                            c.timestamp for c
+                            in calibration_data[CalibrationEventType.NICLA]
+                        ]],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "offsets": np.array(
+                        [
+                            list(c.offsets.values()) for c
+                            in calibration_data[CalibrationEventType.NICLA]
+                        ],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
                 }
-                self._publish(process_time_s=get_time(), new_data=output)
             if calibration_data[CalibrationEventType.ENCODER]:
-                output = {
-                    "encoder_calibration": {
-                        "toa_s": np.array(
-                            [
-                                list(
-                                    map(
-                                        lambda c: c.timestamp,
-                                        calibration_data[CalibrationEventType.ENCODER],
-                                    )
-                                )
-                            ],
-                            dtype=np.float64,
-                        ).transpose((1, 0)),
-                        "offsets": np.array(
-                            list(
-                                map(
-                                    lambda c: list(c.offsets.values()),
-                                    calibration_data[CalibrationEventType.ENCODER],
-                                )
-                            ),
-                            dtype=np.float32,
-                        ).transpose((1, 0)),
-                    }
+                output["encoder_calibration"] = {
+                    "toa_s": np.array(
+                        [[
+                            c.timestamp for c
+                            in calibration_data[CalibrationEventType.ENCODER]
+                        ]],
+                        dtype=np.float64,
+                    ).transpose((1, 0)),
+                    "offsets": np.array(
+                        [
+                            list(c.offsets.values()) for c
+                            in calibration_data[CalibrationEventType.ENCODER]
+                        ],
+                        dtype=np.float32,
+                    ).transpose((1, 0)),
                 }
-                self._publish(process_time_s=get_time(), new_data=output)
 
+            self._publish(process_time_s=get_time(), new_data=output)
             self._notify_no_more_data_out()
 
     def _stop_new_data(self):
