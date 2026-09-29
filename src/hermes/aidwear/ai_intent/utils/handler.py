@@ -325,6 +325,7 @@ class IntentClassifierHandler:
                 f"Warning: Checkpoint not found: {config.checkpoint_path}", flush=True
             )
 
-        # TODO: compile the model with Dynamo for higher efficiency.
-
+        # Compile the model with Dynamo for higher efficiency.
+        # TODO: compile with TensoRT or ONNX in the future.
+        # return torch.compile(main_model.eval(), mode="reduce-overhead")
         return main_model.eval()

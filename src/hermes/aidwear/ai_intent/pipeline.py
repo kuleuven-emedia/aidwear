@@ -74,7 +74,7 @@ class IntentClassifierPipeline(Pipeline):
             data_out_spec["gravity_scaling_factor"] * 9.80665 / 32768.0
         )
         self._gyroscope_scaling_factor = (
-            data_out_spec["gyroscope_scaling_factor"] / 32768.0
+            data_out_spec["gyroscope_scaling_factor"] * 180.0 / np.pi / 32768.0
         )
 
         # Instantiate shared memory torch circular buffers.
@@ -182,6 +182,7 @@ class IntentClassifierPipeline(Pipeline):
             #   [x,y,z] -> [-y,-x,-z] (torso used in place of pelvis)
             #   [x,y,z] -> [-y,-z,x] (thigh right, shank right)
             #   [x,y,z] -> [-y,z,-x] (thigh left, shank left)
+            # Gyroscope from Nicla is in degrees/second, while Xsens-trained AI model is in rad/s; gyro scaling factor autoconverts this.
             
             #   [x,y,z] -> [-y,x,z] (pelvis)
             filtered_niclas = {

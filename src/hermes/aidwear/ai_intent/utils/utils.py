@@ -75,11 +75,11 @@ def preprocess_async_imu(
             and a list of release callbacks to unlock the shared buffers.
     """
 
-    def _copy_logic(windows: List[Tensor], dev_id: int):
+    def _copy_logic(windows: List[Tensor], dev_id: int, num_dev: int):
         start_acc = 3 * dev_id
         end_acc = 3 * (dev_id + 1)
-        start_gyr = start_acc + 15
-        end_gyr = end_acc + 15
+        start_gyr = start_acc + 3 * num_dev
+        end_gyr = end_acc + 3 * num_dev
 
         staging_tensor[: windows[0].shape[0], start_acc:end_acc].copy_(
             windows[0][:, :3], non_blocking=True
@@ -100,7 +100,7 @@ def preprocess_async_imu(
     windows_end: list[float] = []
     for dev, buf in imu_buffers.items():
         windows, window_start_s, window_end_s = buf.reserve(num_samples)
-        _copy_logic(windows, feature_mapping[dev])
+        _copy_logic(windows, feature_mapping[dev], len(feature_mapping))
         releasers.append(buf.release)
         windows_start.append(window_start_s)
         windows_end.append(window_end_s)
