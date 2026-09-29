@@ -17,7 +17,7 @@ resolution-markers = [
 [[package]]
 name = "aidwear"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "pysio-hermes" },
 ]
@@ -1647,7 +1647,7 @@ wheels = [
 [[package]]
 name = "pysio-hermes"
 version = "0.5.1"
-source = { git = "https://github.com/maximyudayev/hermes.git#49f077bd70d2cf136f7d3ec23358d09034dc8d97" }
+source = { git = "https://github.com/maximyudayev/hermes.git#b81284dd82ef628de9ae455abd78cad0e98836b7" }
 dependencies = [
     { name = "ffmpeg-python" },
     { name = "h5py" },

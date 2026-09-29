@@ -38,3 +38,10 @@ visualization = [
 
 [tool.uv.sources]
 pysio-hermes = { git = "https://github.com/maximyudayev/hermes.git" }
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
