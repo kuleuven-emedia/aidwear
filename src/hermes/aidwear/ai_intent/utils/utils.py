@@ -78,23 +78,23 @@ def preprocess_async_imu(
     def _copy_logic(windows: List[Tensor], dev_id: int, num_dev: int):
         start_acc = 3 * dev_id
         end_acc = 3 * (dev_id + 1)
-        start_gyr = start_acc + 3 * num_dev
-        end_gyr = end_acc + 3 * num_dev
+        # start_gyr = start_acc + 3 * num_dev
+        # end_gyr = end_acc + 3 * num_dev
 
         staging_tensor[: windows[0].shape[0], start_acc:end_acc].copy_(
             windows[0][:, :3], non_blocking=True
         )
-        staging_tensor[: windows[0].shape[0], start_gyr:end_gyr].copy_(
-            windows[0][:, 3:], non_blocking=True
-        )
+        # staging_tensor[: windows[0].shape[0], start_gyr:end_gyr].copy_(
+        #     windows[0][:, 3:], non_blocking=True
+        # )
         if len(windows) > 1:
             staging_tensor[windows[0].shape[0] :, start_acc:end_acc].copy_(
                 windows[1][:, :3], non_blocking=True
             )
-            staging_tensor[windows[0].shape[0] :, start_gyr:end_gyr].copy_(
-                windows[1][:, 3:], non_blocking=True
-            )
-
+            # staging_tensor[windows[0].shape[0] :, start_gyr:end_gyr].copy_(
+            #     windows[1][:, 3:], non_blocking=True
+            # )
+# TODO: downsample the staged buffer based on toa_s
     releasers = []
     windows_start: list[float] = []
     windows_end: list[float] = []

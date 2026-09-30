@@ -210,9 +210,9 @@ class IntentClassifierPipeline(Pipeline):
                                 v[NiclaDataGetMethods.acceleration.name][:, [1, 0, 2]]
                                 * self._gravity_scaling_factor
                                 * [-1, 1, 1],
-                                v[NiclaDataGetMethods.gyroscope.name][:, [1, 0, 2]]
-                                * self._gyroscope_scaling_factor
-                                * [-1, 1, 1]
+                                # v[NiclaDataGetMethods.gyroscope.name][:, [1, 0, 2]]
+                                # * self._gyroscope_scaling_factor
+                                # * [-1, 1, 1]
                             ),
                             axis=1,
                             dtype=np.float32,

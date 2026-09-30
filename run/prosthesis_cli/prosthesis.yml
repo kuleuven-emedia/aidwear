@@ -74,9 +74,9 @@ pipeline_specs:
               homing:
                 homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
                 acceleration: 1_000
-                speed_switch: 100
-                speed_index: 100
-                current_threshold_ma: 1_000
+                speed_switch: 600
+                speed_index: 600
+                current_threshold_ma: 2_000
                 home_offset_enc_ticks: 0
                 home_position_coordinate: 0
               absolute_encoder_reference: 180.0

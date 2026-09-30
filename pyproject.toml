@@ -18,7 +18,20 @@ prosthesis = [
     "scipy",
     "watchdog",
 ]
-ai = [
+ai_cpu = [
+    "bleak",
+    "python-can",
+    "python-statemachine",
+    "torch",
+    "torchvision",
+    "torchcodec",
+    "fvcore",
+    "pyyaml",
+    "pandas",
+    "numpy",
+    "scipy",
+]
+ai_cu132 = [
     "bleak",
     "python-can",
     "python-statemachine",
@@ -34,14 +47,47 @@ ai = [
 visualization = [
     "PyQt6",
     "pyqtgraph",
+    "watchdog",
 ]
+
+
+[tool.uv]
+conflicts = [
+  [
+    { extra = "ai_cpu" },
+    { extra = "ai_cu132" },
+  ],
+]
+
 
 [tool.uv.sources]
 pysio-hermes = { git = "https://github.com/maximyudayev/hermes.git" }
+torch = [
+    { index = "pytorch-cpu", extra = "ai_cpu" },
+    { index = "pytorch-cu132", extra = "ai_cu132" },
+]
+torchvision = [
+    { index = "pytorch-cpu", extra = "ai_cpu" },
+    { index = "pytorch-cu132", extra = "ai_cu132" },
+]
+
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
+
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
 
 [tool.setuptools.packages.find]
 where = ["src"]

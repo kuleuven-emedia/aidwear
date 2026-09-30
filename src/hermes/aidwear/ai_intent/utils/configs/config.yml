@@ -1,6 +1,6 @@
 prediction_horizons: [0]
 
-checkpoint: "../weights/DCL_AidWear_Lower_Body_5_IMU.pt"
+checkpoint: "../weights/DCL_AidWear_Lower_Body_5_IMU_Acc_Only.pt"
 
 modalities:
   raw_imu:
@@ -42,7 +42,7 @@ models:
   raw_imu:
     name: DeepConvLSTM
     params:
-      channels: 30
+      channels: 15
       window_size: 180
       conv_kernels: 64
       conv_kernel_size: 11
