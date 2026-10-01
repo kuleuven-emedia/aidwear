@@ -47,7 +47,7 @@
                 "-o",
                 "data",
                 "-f",
-                "run/test/gui.yml",
+                "run/test/visualizer.yml",
                 "-e",
                 "project=Test",
                 "type=GUI",

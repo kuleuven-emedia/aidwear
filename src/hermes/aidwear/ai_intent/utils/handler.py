@@ -17,6 +17,7 @@ import numpy as np
 import torch
 from torch import Tensor, cuda
 from torch.nn import Module
+import torch.nn.functional as F
 from multiprocessing import Queue
 from multiprocessing.synchronize import Event as _Event
 
@@ -210,6 +211,35 @@ class IntentClassifierHandler:
                 release_fn()
 
             inputs = {mod: buf_slice.tensor for mod, buf_slice in buffer_slices.items()}
+
+            # TODO: resample w.r.t. the `toa_s` of the data, not simply "latest data".
+            if ModalityType.RAW_IMU.value in inputs and self._imu_type != "mvn":
+                # Downsample async IMU data from ~90Hz to 60Hz (2s receptive field window -> 120 samples)
+                raw_imu = inputs[ModalityType.RAW_IMU.value]
+                target_samples = 120
+                if raw_imu.shape[-2] != target_samples:
+                    if raw_imu.ndim == 2:
+                        inputs[ModalityType.RAW_IMU.value] = (
+                            F.interpolate(
+                                raw_imu.unsqueeze(0).transpose(1, 2),
+                                size=target_samples,
+                                mode="linear",
+                                align_corners=True,
+                            )
+                            .transpose(1, 2)
+                            .squeeze(0)
+                        )
+                    elif raw_imu.ndim == 3:
+                        inputs[ModalityType.RAW_IMU.value] = (
+                            F.interpolate(
+                                raw_imu.transpose(1, 2),
+                                size=target_samples,
+                                mode="linear",
+                                align_corners=True,
+                            )
+                            .transpose(1, 2)
+                        )
+
             if self._modality_type == ModalityType.MULTIMODAL:
                 logits: Tensor = self._model(**inputs)
             else:

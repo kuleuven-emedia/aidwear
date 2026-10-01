@@ -36,16 +36,7 @@ consumer_specs:
           class: "ProsthesisPipeline"
           node_id: "prosthesis"
           topics:
-            - "nicla_torso"
-            - "nicla_thigh_right"
-            - "nicla_thigh_left"
-            - "nicla_shank_right"
-            - "nicla_shank_left"
-            - "motor_knee"
-            - "motor_ankle"
-            - "encoder_knee"
-            - "encoder_ankle"
-            - "mode"
+            - "telemetry.all"
           settings:
             niclas:
               buf_len: 100

@@ -1,0 +1,44 @@
+host_ip: "127.0.0.1"
+is_master_broker: True
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+logging_spec:
+  stream_period_s: 60
+  stream_hdf5: True
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+producer_specs:
+  - package: "aidwear.visualizer"
+    class: "DummyProducer"
+    node_id: "prosthesis"
+    settings:
+      sampling_rate_hz: 25.0
+      buf_len: 1_000
+      num_classes: 8
+
+consumer_specs:
+  - package: "aidwear.visualizer"
+    class: "VisualizerConsumer"
+    node_id: "visualizer"
+    settings:
+      history_len: 150
+      draw_interval_s: 0.04
+      dark_mode: True
+      data_in_specs:
+        - package: "aidwear.visualizer"
+          class: "DummyProducer"
+          node_id: "prosthesis"
+          topics:
+            - "telemetry.all"
+          settings:
+            buf_len: 1_000
+
+pipeline_specs: []

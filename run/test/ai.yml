@@ -113,11 +113,7 @@ pipeline_specs:
           class: "NiclaSenseMeProducer"
           node_id: "niclas"
           topics:
-            - "nicla_torso"
-            - "nicla_thigh_right"
-            - "nicla_thigh_left"
-            - "nicla_shank_right"
-            - "nicla_shank_left"
+            - "telemetry.nicla.all"
           settings:
             niclas:
               buf_len: 10_000

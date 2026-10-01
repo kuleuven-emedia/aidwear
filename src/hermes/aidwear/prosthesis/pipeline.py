@@ -199,6 +199,66 @@ class ProsthesisPipeline(Pipeline):
             port_killsig=port_killsig,
         )
 
+        # Register hierarchical and grouped topics for flexible subscription
+        nicla_locs = list(self._nicla_mapping.keys())
+        motor_joints = list(self._motor_mapping.keys())
+
+        nicla_bundles = [f"nicla_{loc}" for loc in nicla_locs]
+        motor_bundles = [f"motor_{joint}" for joint in motor_joints]
+        encoder_bundles = [f"encoder_{joint}" for joint in motor_joints]
+        other_bundles = ["mode", "state", "phase"]
+        all_telemetry = nicla_bundles + motor_bundles + encoder_bundles + other_bundles
+
+        topic_map = {
+            # Full telemetry
+            "telemetry.all": all_telemetry,
+            "telemetry": all_telemetry,
+            "all": all_telemetry,
+            "data": all_telemetry,
+
+            # Nicla grouping
+            "telemetry.nicla.all": nicla_bundles,
+            "telemetry.nicla": nicla_bundles,
+            "nicla.all": nicla_bundles,
+            "nicla": nicla_bundles,
+
+            # Motor grouping
+            "telemetry.motor.all": motor_bundles,
+            "telemetry.motor": motor_bundles,
+            "motor.all": motor_bundles,
+            "motor": motor_bundles,
+
+            # Encoder grouping
+            "telemetry.encoder.all": encoder_bundles,
+            "telemetry.encoder": encoder_bundles,
+            "encoder.all": encoder_bundles,
+            "encoder": encoder_bundles,
+
+            # Mode, state, phase
+            "telemetry.mode": ["mode"],
+            "mode": ["mode"],
+            "telemetry.state": ["state"],
+            "state": ["state"],
+            "telemetry.phase": ["phase"],
+            "phase": ["phase"],
+        }
+
+        for loc in nicla_locs:
+            topic_map[f"telemetry.nicla.{loc}"] = [f"nicla_{loc}"]
+            topic_map[f"nicla.{loc}"] = [f"nicla_{loc}"]
+            topic_map[f"nicla_{loc}"] = [f"nicla_{loc}"]
+
+        for joint in motor_joints:
+            topic_map[f"telemetry.motor.{joint}"] = [f"motor_{joint}"]
+            topic_map[f"motor.{joint}"] = [f"motor_{joint}"]
+            topic_map[f"motor_{joint}"] = [f"motor_{joint}"]
+
+            topic_map[f"telemetry.encoder.{joint}"] = [f"encoder_{joint}"]
+            topic_map[f"encoder.{joint}"] = [f"encoder_{joint}"]
+            topic_map[f"encoder_{joint}"] = [f"encoder_{joint}"]
+
+        self.register_topic_map(topic_map)
+
     @classmethod
     def create_data_container(cls, data_spec: dict) -> ProsthesisDataContainer:
         return ProsthesisDataContainer(**data_spec)

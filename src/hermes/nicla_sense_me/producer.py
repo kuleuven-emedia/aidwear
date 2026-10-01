@@ -99,6 +99,31 @@ class NiclaSenseMeProducer(Producer):
             transmit_delay_sample_period_s=transmit_delay_sample_period_s,
         )
 
+        # Register hierarchical and grouped topics for flexible subscription
+        nicla_names = list(self._nicla_mapping.keys())
+        nicla_bundles = [f"nicla_{name}" for name in nicla_names]
+
+        topic_map = {
+            # Full telemetry / all Niclas
+            "telemetry.all": nicla_bundles,
+            "telemetry": nicla_bundles,
+            "all": nicla_bundles,
+            "data": nicla_bundles,
+
+            # Nicla grouping
+            "telemetry.nicla.all": nicla_bundles,
+            "telemetry.nicla": nicla_bundles,
+            "nicla.all": nicla_bundles,
+            "nicla": nicla_bundles,
+        }
+
+        for name in nicla_names:
+            topic_map[f"telemetry.nicla.{name}"] = [f"nicla_{name}"]
+            topic_map[f"nicla.{name}"] = [f"nicla_{name}"]
+            topic_map[f"nicla_{name}"] = [f"nicla_{name}"]
+
+        self.register_topic_map(topic_map)
+
     @classmethod
     def create_data_container(cls, data_spec: dict) -> NiclaSenseMeDataContainer:
         return NiclaSenseMeDataContainer(**data_spec)
