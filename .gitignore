@@ -28,3 +28,4 @@ build/
 
 # Model weights
 weights/
+dataset/

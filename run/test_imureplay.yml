@@ -1,0 +1,31 @@
+host_ip: "127.0.0.1"
+is_master_broker: True
+
+remote_subscriber_ips: []
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: False
+remote_kill_ip: null
+
+logging_spec:
+  stream_period_s: 30
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+producer_specs:
+  - package: "xsens_replay"
+    class: "ImuReplayProducer"
+    node_id: "mvn"
+    settings:
+      file_path: "./dataset/mvn_016_1_1.hdf5"
+      sampling_rate_hz: 60
+      sensor_indices: null  # null selects all 17 sensors from dataset; or pass list of indices
+      segment_indices: null # null selects all 23 segments from dataset; or pass list of indices
+      is_loop: True
+      buf_len: 3_000
+
+consumer_specs: []
+
+pipeline_specs: []

@@ -348,8 +348,8 @@ class IntentClassifierPipeline(Pipeline):
                     new_data=torch.from_numpy(
                         np.concatenate(
                             (
-                                data["acceleration"][[0, 1, 4, 2, 5, 3, 6], :],
-                                data["gyroscope"][[0, 1, 4, 2, 5, 3, 6], :],
+                                data["acceleration"][0][[0, 1, 4, 2, 5], :],
+                                data["gyroscope"][0][[0, 1, 4, 2, 5], :],
                             ),
                             axis=0,
                             dtype=np.float32,

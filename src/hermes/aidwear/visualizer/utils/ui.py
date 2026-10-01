@@ -188,6 +188,8 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         }
 
         self._latest_time: float = 0.0
+        self._imu_signal_preference: str = "Auto"
+        self._active_imu_source: str = "None"
 
         # Plot references
         self._plots: list[pg.PlotItem] = []
@@ -284,6 +286,33 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
             }
         """)
         header_layout.addWidget(self.window_combo)
+
+        # IMU Signal Selector
+        imu_signal_label = QtWidgets.QLabel("IMU Signal:")
+        imu_signal_label.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+        header_layout.addWidget(imu_signal_label)
+
+        self.imu_signal_combo = QtWidgets.QComboBox()
+        self.imu_signal_combo.addItems(["Auto", "Acceleration", "Gyroscope"])
+        self.imu_signal_combo.setCurrentText("Auto")
+        self.imu_signal_combo.currentTextChanged.connect(self._on_imu_signal_changed)
+        self.imu_signal_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #1e2230;
+                color: #f1f5f9;
+                border: 1px solid #334155;
+                border-radius: 4px;
+                padding: 3px 8px;
+                font-size: 12px;
+            }
+            QComboBox::drop-down { border: none; }
+            QComboBox QAbstractItemView {
+                background-color: #1e2230;
+                color: #f1f5f9;
+                selection-background-color: #3b82f6;
+            }
+        """)
+        header_layout.addWidget(self.imu_signal_combo)
 
         # Pause / Resume Button
         self.pause_btn = QtWidgets.QPushButton("Pause")
@@ -526,7 +555,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
             )
             p.showGrid(x=True, y=True, alpha=0.22)
             p.setLabel("bottom", "Time", units="s")
-            p.setLabel("left", "deg / (m/s²)")
+            p.setLabel("left", "deg / (deg/s) / (m/s²)")
             p.setXRange(-self.time_window_s, 0.0, padding=0.0)
             p.enableAutoRange(axis="y", enable=True)
 
@@ -685,6 +714,132 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         for p in self._plots:
             p.enableAutoRange(axis="y", enable=True)
 
+    def _update_imu_y_label(self, unit_str: str) -> None:
+        """Update Y-axis label on all 5 IMU subplots if changed."""
+        if getattr(self, "_current_imu_unit", None) != unit_str:
+            self._current_imu_unit = unit_str
+            for p in self._plots[:5]:
+                p.setLabel("left", unit_str)
+
+    def _on_imu_signal_changed(self, text: str) -> None:
+        """Handle user changing the IMU signal source (Auto, Acceleration, Gyroscope)."""
+        self._imu_signal_preference = text
+        for loc in self.IMU_LOCATIONS:
+            for ch in range(3):
+                self._imu_times[loc][ch].clear()
+                self._imu_values[loc][ch].clear()
+
+        unit_str = (
+            "m/s²"
+            if text == "Acceleration"
+            else ("deg/s" if text == "Gyroscope" else "deg / (deg/s) / (m/s²)")
+        )
+        self._update_imu_y_label(unit_str)
+        self._autoscale_all()
+
+    @classmethod
+    def get_xsens_sensor_map(cls, num_sensors: int) -> dict[NiclaLocation, int]:
+        """Map Xsens sensor array indices to NiclaLocation subplots based on sensor count.
+
+        - For full-body Xsens MVN layout (>= 16 sensors):
+            0: Pelvis (Torso)
+            11: Right Upper Leg (Thigh Right)
+            14: Left Upper Leg (Thigh Left)
+            12: Right Lower Leg (Shank Right)
+            15: Left Lower Leg (Shank Left)
+        - For 7-sensor lower-body layout [pelvis, thigh_r, shank_r, foot_r, thigh_l, shank_l, foot_l]:
+            0: Pelvis, 1: Thigh Right, 2: Shank Right, 4: Thigh Left, 5: Shank Left
+        - For 5-sensor lower-body layout [pelvis, thigh_r, thigh_l, shank_r, shank_l]:
+            0: Pelvis, 1: Thigh Right, 2: Thigh Left, 3: Shank Right, 4: Shank Left
+        """
+        if num_sensors >= 16:
+            return {
+                NiclaLocation.TORSO: 0,
+                NiclaLocation.THIGH_RIGHT: 11,
+                NiclaLocation.THIGH_LEFT: 14,
+                NiclaLocation.SHANK_RIGHT: 12,
+                NiclaLocation.SHANK_LEFT: 15,
+            }
+        elif num_sensors == 7:
+            return {
+                NiclaLocation.TORSO: 0,
+                NiclaLocation.THIGH_RIGHT: 1,
+                NiclaLocation.SHANK_RIGHT: 2,
+                NiclaLocation.THIGH_LEFT: 4,
+                NiclaLocation.SHANK_LEFT: 5,
+            }
+        elif num_sensors >= 5:
+            return {
+                NiclaLocation.TORSO: 0,
+                NiclaLocation.THIGH_RIGHT: 1,
+                NiclaLocation.THIGH_LEFT: 2,
+                NiclaLocation.SHANK_RIGHT: 3,
+                NiclaLocation.SHANK_LEFT: 4,
+            }
+        else:
+            locs = [
+                NiclaLocation.TORSO,
+                NiclaLocation.THIGH_RIGHT,
+                NiclaLocation.THIGH_LEFT,
+                NiclaLocation.SHANK_RIGHT,
+                NiclaLocation.SHANK_LEFT,
+            ]
+            return {loc: i for i, loc in enumerate(locs[:num_sensors])}
+
+    def _handle_xsens_imu(self, bundle_data: dict, now: float) -> None:
+        """Parse incoming Xsens MVN motion trackers packet and update IMU subplots."""
+        if not isinstance(bundle_data, dict):
+            return
+
+        pref = getattr(self, "_imu_signal_preference", "Auto")
+        signal_key = None
+        if pref == "Acceleration" and "acceleration" in bundle_data:
+            signal_key = "acceleration"
+        elif pref == "Gyroscope" and "gyroscope" in bundle_data:
+            signal_key = "gyroscope"
+        else:
+            # Auto preference: default to linear acceleration, then free_acceleration, then gyroscope
+            if "acceleration" in bundle_data:
+                signal_key = "acceleration"
+            elif "free_acceleration" in bundle_data:
+                signal_key = "free_acceleration"
+            elif "gyroscope" in bundle_data:
+                signal_key = "gyroscope"
+
+        if signal_key is None:
+            return
+
+        samples = np.asarray(bundle_data[signal_key])
+        if samples.ndim == 2 and samples.shape[-1] >= 3:
+            samples = samples[np.newaxis, :, :]  # (1, num_sensors, 3)
+        elif samples.ndim != 3 or samples.shape[-1] < 3:
+            return
+
+        num_samples = samples.shape[0]
+        num_sensors = samples.shape[1]
+        sensor_map = self.get_xsens_sensor_map(num_sensors)
+        t_arr = self._extract_timestamps(bundle_data, num_samples, now)
+
+        for loc, s_idx in sensor_map.items():
+            if s_idx < num_sensors and loc in self._imu_times:
+                loc_samples = samples[:, s_idx, :]
+                for ch in range(3):
+                    self._imu_times[loc][ch].extend(t_arr.tolist())
+                    self._imu_values[loc][ch].extend(loc_samples[:, ch].tolist())
+
+        if t_arr.size > 0:
+            self._latest_time = max(self._latest_time, float(t_arr[-1]))
+            self._active_imu_source = "Xsens MVN"
+            if pref == "Auto":
+                self._update_imu_y_label(
+                    "deg/s" if signal_key == "gyroscope" else "m/s²"
+                )
+            if not self.is_paused:
+                self.status_badge.setText("● LIVE STREAMING [XSENS]")
+                self.status_badge.setStyleSheet(
+                    "color: #22c55e; font-weight: bold; font-size: 12px; margin-right: 8px;"
+                )
+
     def _extract_timestamps(
         self, bundle_data: dict, num_samples: int, now: float
     ) -> np.ndarray:
@@ -694,8 +849,9 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
             if len(raw_t) == num_samples:
                 return raw_t.astype(np.float64)
             if len(raw_t) == 1 and num_samples > 1:
+                dt = 1.0 / float(bundle_data.get("sampling_rate_hz", 60.0))
                 return np.linspace(
-                    raw_t[0] - (num_samples - 1) * 0.02,
+                    raw_t[0] - (num_samples - 1) * dt,
                     raw_t[0],
                     num_samples,
                     dtype=np.float64,
@@ -704,7 +860,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         if num_samples <= 1:
             return np.array([now], dtype=np.float64)
         return np.linspace(
-            now - (num_samples - 1) * 0.02, now, num_samples, dtype=np.float64
+            now - (num_samples - 1) * (1.0 / 60.0), now, num_samples, dtype=np.float64
         )
 
     def _ensure_class_capacity(self, num_classes: int) -> None:
@@ -981,13 +1137,19 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                     loc_name = bundle_name[6:]
                     loc = self.NICLA_BY_NAME.get(loc_name)
                     if loc is not None and loc in self._imu_times:
+                        pref = getattr(self, "_imu_signal_preference", "Auto")
                         signal_key = None
-                        if "euler" in bundle_data:
-                            signal_key = "euler"
-                        elif "acceleration" in bundle_data:
+                        if pref == "Acceleration" and "acceleration" in bundle_data:
                             signal_key = "acceleration"
-                        elif "gyroscope" in bundle_data:
+                        elif pref == "Gyroscope" and "gyroscope" in bundle_data:
                             signal_key = "gyroscope"
+                        else:
+                            if "euler" in bundle_data:
+                                signal_key = "euler"
+                            elif "acceleration" in bundle_data:
+                                signal_key = "acceleration"
+                            elif "gyroscope" in bundle_data:
+                                signal_key = "gyroscope"
 
                         if signal_key is not None:
                             samples = np.asarray(bundle_data[signal_key])
@@ -997,24 +1159,78 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                                     bundle_data, num_samples, now
                                 )
                                 for ch in range(3):
-                                    self._imu_times[loc][ch].extend(t_arr)
-                                    self._imu_values[loc][ch].extend(samples[:, ch])
+                                    self._imu_times[loc][ch].extend(t_arr.tolist())
+                                    self._imu_values[loc][ch].extend(
+                                        samples[:, ch].tolist()
+                                    )
                                 if t_arr.size > 0:
                                     self._latest_time = max(
                                         self._latest_time, float(t_arr[-1])
                                     )
+                                    self._active_imu_source = "Nicla"
+                                    if pref == "Auto":
+                                        unit_lbl = (
+                                            "deg"
+                                            if signal_key == "euler"
+                                            else (
+                                                "deg/s"
+                                                if signal_key == "gyroscope"
+                                                else "m/s²"
+                                            )
+                                        )
+                                        self._update_imu_y_label(unit_lbl)
+                                    if not self.is_paused:
+                                        self.status_badge.setText(
+                                            "● LIVE STREAMING [NICLA]"
+                                        )
+                                        self.status_badge.setStyleSheet(
+                                            "color: #22c55e; font-weight: bold; font-size: 12px; margin-right: 8px;"
+                                        )
 
                             elif samples.ndim == 1 and len(samples) >= 3:
                                 t_arr = self._extract_timestamps(bundle_data, 1, now)
                                 for ch in range(3):
-                                    self._imu_times[loc][ch].extend(t_arr)
-                                    self._imu_values[loc][ch].append(float(samples[ch]))
+                                    self._imu_times[loc][ch].extend(t_arr.tolist())
+                                    self._imu_values[loc][ch].append(
+                                        float(samples[ch])
+                                    )
                                 if t_arr.size > 0:
                                     self._latest_time = max(
                                         self._latest_time, float(t_arr[-1])
                                     )
+                                    self._active_imu_source = "Nicla"
+                                    if pref == "Auto":
+                                        unit_lbl = (
+                                            "deg"
+                                            if signal_key == "euler"
+                                            else (
+                                                "deg/s"
+                                                if signal_key == "gyroscope"
+                                                else "m/s²"
+                                            )
+                                        )
+                                        self._update_imu_y_label(unit_lbl)
+                                    if not self.is_paused:
+                                        self.status_badge.setText(
+                                            "● LIVE STREAMING [NICLA]"
+                                        )
+                                        self.status_badge.setStyleSheet(
+                                            "color: #22c55e; font-weight: bold; font-size: 12px; margin-right: 8px;"
+                                        )
 
-                # 2. Motor updates (knee, ankle)
+                # 2. Xsens MVN replay IMU updates ("xsens_motion_trackers")
+                elif (
+                    bundle_name in ("xsens_motion_trackers", "mvn")
+                    or bundle_name.startswith("xsens_motion_trackers")
+                ):
+                    payload = (
+                        bundle_data.get("xsens_motion_trackers", bundle_data)
+                        if isinstance(bundle_data, dict)
+                        else bundle_data
+                    )
+                    self._handle_xsens_imu(payload, now)
+
+                # 3. Motor updates (knee, ankle)
                 elif bundle_name.startswith("motor_"):
                     motor_name = bundle_name[6:]
                     motor_id = self.MOTOR_BY_NAME.get(motor_name)
