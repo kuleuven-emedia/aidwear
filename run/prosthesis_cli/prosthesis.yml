@@ -1,12 +1,14 @@
-host_ip: "127.0.0.1"
-is_master_broker: True
+host_ip: "192.168.0.102"
+is_master_broker: False
 
-remote_subscriber_ips: []
-remote_publisher_ips: []
+remote_subscriber_ips:
+  - "192.168.0.110"
+remote_publisher_ips:
+  - "192.168.0.110"
 connections: []
 
-is_remote_kill: False
-remote_kill_ip: null
+is_remote_kill: True
+remote_kill_ip: "192.168.0.110"
 
 logging_spec:
   stream_period_s: 30

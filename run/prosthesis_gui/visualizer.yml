@@ -8,6 +8,7 @@ connections:
   - ssh_username: "aidwear"
     ssh_host_ip: "192.168.0.102"
     platform: "Linux"
+    pre_hook: "./run/prehook_prosthesis.sh"
     config_filepath: "./run/prosthesis_gui/prosthesis.yml"
     project_dir: "~/aidwear"
     output_dir: "./data"

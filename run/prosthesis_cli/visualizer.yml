@@ -8,6 +8,7 @@ connections:
   - ssh_username: "aidwear"
     ssh_host_ip: "192.168.0.102"
     platform: "Linux"
+    pre_hook: "./run/prehook_prosthesis.sh"
     config_filepath: "./run/prosthesis_cli/prosthesis.yml"
     project_dir: "~/aidwear"
     output_dir: "./data"
@@ -46,7 +47,7 @@ consumer_specs:
               device_mapping:
                 torso: "D8:4E:18:CC:F6:62"
                 thigh_right: "4D:8B:11:D5:F2:46"
-                thigh_left: "A3:2F:AF:84:4E:1D"
+                thigh_left: "DF:CA:13:E0:E1:59"
                 shank_right: "96:CD:19:11:5B:F7"
                 shank_left: "D5:A0:BA:27:CA:09"
               gravity_scaling_factor: 4
