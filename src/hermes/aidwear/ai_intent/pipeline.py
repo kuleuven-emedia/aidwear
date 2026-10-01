@@ -71,15 +71,34 @@ class IntentClassifierPipeline(Pipeline):
         # Define scaling factors for converting raw Nicla IMU data to real-world units.
         self._imu_type = data_out_spec["imu_type"]
         self._gravity_scaling_factor = (
-            data_out_spec["gravity_scaling_factor"] * 9.80665 / 32768.0
+            data_out_spec.get("gravity_scaling_factor", 4) * 9.80665 / 32768.0
         )
         self._gyroscope_scaling_factor = (
-            data_out_spec["gyroscope_scaling_factor"] * 180.0 / np.pi / 32768.0
+            data_out_spec.get("gyroscope_scaling_factor", 500) * 180.0 / np.pi / 32768.0
         )
 
         # Instantiate shared memory torch circular buffers.
         self._torch_device: str = data_out_spec["device"]
         input_modalities_spec: dict[str, dict[str, dict]] = data_out_spec["modalities"]
+
+        # Determine whether model uses Accelerometer only (3 channels per IMU) or Acc + Gyro (6 channels).
+        raw_imu_modalities = input_modalities_spec.get(
+            ModalityType.RAW_IMU.value, input_modalities_spec.get("raw_imu", {})
+        )
+        first_sensor_spec = (
+            next(iter(raw_imu_modalities.values()), {})
+            if raw_imu_modalities
+            else {}
+        )
+        num_features = first_sensor_spec.get("num_features", [6])
+        num_channels = (
+            num_features[0] if isinstance(num_features, (list, tuple)) else num_features
+        )
+        self._is_use_gyro: bool = (
+            data_out_spec.get("is_use_gyro")
+            if "is_use_gyro" in data_out_spec
+            else (num_channels == 6)
+        )
         self._input_buffer: dict[
             ModalityType, dict[NiclaLocation | str, SharedTensorCircularBuffer]
         ] = {
@@ -147,7 +166,10 @@ class IntentClassifierPipeline(Pipeline):
             "in_streams": [
                 key for mod in input_modalities_spec.values() for key in mod
             ],
-            "buf_len": data_out_spec["buf_len"],
+            "buf_len": data_out_spec.get(
+                "buf_len",
+                data_out_spec.get("module_params", {}).get("buf_len", 10_000),
+            ),
         }
 
         super().__init__(
@@ -162,6 +184,14 @@ class IntentClassifierPipeline(Pipeline):
             port_sync=port_sync,
             port_killsig=port_killsig,
         )
+
+    @property
+    def is_use_gyro(self) -> bool:
+        return self._is_use_gyro
+
+    @property
+    def is_acc_only(self) -> bool:
+        return not self._is_use_gyro
 
     @classmethod
     def create_data_container(cls, data_spec: dict) -> IntentClassifierDataContainer:
@@ -183,16 +213,19 @@ class IntentClassifierPipeline(Pipeline):
             #   [x,y,z] -> [-y,-z,x] (thigh right, shank right)
             #   [x,y,z] -> [-y,z,-x] (thigh left, shank left)
             # Gyroscope from Nicla is in degrees/second, while Xsens-trained AI model is in rad/s; gyro scaling factor autoconverts this.
-            
+
             #   [x,y,z] -> [-y,x,z] (pelvis)
             filtered_niclas = {
-                k: v for k, v in msg.items()
+                k: v
+                for k, v in msg.items()
                 if re.match(
-                    f"^nicla_(?!{'|'.join([
-                        NiclaLocation.PELVIS.value,
-                        NiclaLocation.FOOT_LEFT.value,
-                        NiclaLocation.FOOT_RIGHT.value,
-                    ])})(.*)$",
+                    f"^nicla_(?!{'|'.join(
+                        [
+                            NiclaLocation.PELVIS.value,
+                            NiclaLocation.FOOT_LEFT.value,
+                            NiclaLocation.FOOT_RIGHT.value,
+                        ]
+                    )})(.*)$",
                     k
                 )
             }
@@ -204,19 +237,22 @@ class IntentClassifierPipeline(Pipeline):
 
             data: dict[NiclaLocation, tuple[torch.Tensor, torch.Tensor]] = {
                 k: (
-                    torch.from_numpy( 
+                    torch.from_numpy(
                         np.concatenate(
                             (
                                 v[NiclaDataGetMethods.acceleration.name][:, [1, 0, 2]]
                                 * self._gravity_scaling_factor
                                 * [-1, 1, 1],
-                                # v[NiclaDataGetMethods.gyroscope.name][:, [1, 0, 2]]
-                                # * self._gyroscope_scaling_factor
-                                # * [-1, 1, 1]
+                                v[NiclaDataGetMethods.gyroscope.name][:, [1, 0, 2]]
+                                * self._gyroscope_scaling_factor
+                                * [-1, 1, 1],
                             ),
                             axis=1,
                             dtype=np.float32,
-                        )
+                        ) if self.is_use_gyro else
+                        v[NiclaDataGetMethods.acceleration.name][:, [1, 0, 2]]
+                        * self._gravity_scaling_factor
+                        * [-1, 1, 1]
                     ),
                     torch.from_numpy(v["toa_s"]),
                 )
@@ -225,7 +261,7 @@ class IntentClassifierPipeline(Pipeline):
 
             # data: dict[NiclaLocation, tuple[torch.Tensor, torch.Tensor]] = {
             #     k: (
-            #         torch.from_numpy( 
+            #         torch.from_numpy(
             #             np.concatenate(
             #                 (
             #                     v[NiclaDataGetMethods.acceleration.name][:,

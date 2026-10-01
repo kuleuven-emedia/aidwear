@@ -153,12 +153,10 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         max_buf = max(2000, int(50 * (self.time_window_s + 15)))
 
         self._imu_times: dict[NiclaLocation, list[deque]] = {
-            loc: [deque(maxlen=max_buf) for _ in range(3)]
-            for loc in self.IMU_LOCATIONS
+            loc: [deque(maxlen=max_buf) for _ in range(3)] for loc in self.IMU_LOCATIONS
         }
         self._imu_values: dict[NiclaLocation, list[deque]] = {
-            loc: [deque(maxlen=max_buf) for _ in range(3)]
-            for loc in self.IMU_LOCATIONS
+            loc: [deque(maxlen=max_buf) for _ in range(3)] for loc in self.IMU_LOCATIONS
         }
 
         self._motor_pos_times: dict[MotorId, deque] = {
@@ -650,9 +648,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         self._latest_time = 0.0
 
         # Reset AI predictions and mode display
-        self._latest_predictions = np.zeros(
-            len(self._class_names), dtype=np.float64
-        )
+        self._latest_predictions = np.zeros(len(self._class_names), dtype=np.float64)
         self._latest_ai_seq = 0
         self._latest_ai_latency_ms = 0.0
         self._render_ai_predictions()
@@ -728,9 +724,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         self.ai_plot.setYRange(-0.6, len(self._class_names) - 0.4, padding=0.0)
         self._bar_item.setOpts(y=list(range(len(self._class_names))))
 
-    def _extract_probabilities(
-        self, preds_raw, logits_raw
-    ) -> Optional[np.ndarray]:
+    def _extract_probabilities(self, preds_raw, logits_raw) -> Optional[np.ndarray]:
         """Convert incoming predictions or logits array into normalized probabilities."""
         preds = None
         if preds_raw is not None:
@@ -1004,23 +998,17 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                                 )
                                 for ch in range(3):
                                     self._imu_times[loc][ch].extend(t_arr)
-                                    self._imu_values[loc][ch].extend(
-                                        samples[:, ch]
-                                    )
+                                    self._imu_values[loc][ch].extend(samples[:, ch])
                                 if t_arr.size > 0:
                                     self._latest_time = max(
                                         self._latest_time, float(t_arr[-1])
                                     )
 
                             elif samples.ndim == 1 and len(samples) >= 3:
-                                t_arr = self._extract_timestamps(
-                                    bundle_data, 1, now
-                                )
+                                t_arr = self._extract_timestamps(bundle_data, 1, now)
                                 for ch in range(3):
                                     self._imu_times[loc][ch].extend(t_arr)
-                                    self._imu_values[loc][ch].append(
-                                        float(samples[ch])
-                                    )
+                                    self._imu_values[loc][ch].append(float(samples[ch]))
                                 if t_arr.size > 0:
                                     self._latest_time = max(
                                         self._latest_time, float(t_arr[-1])
@@ -1030,57 +1018,42 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                 elif bundle_name.startswith("motor_"):
                     motor_name = bundle_name[6:]
                     motor_id = self.MOTOR_BY_NAME.get(motor_name)
-                    if (
-                        motor_id is not None
-                        and motor_id in self._motor_pos_times
-                    ):
+                    if motor_id is not None and motor_id in self._motor_pos_times:
                         if "position" in bundle_data:
-                            pos_samples = np.asarray(
-                                bundle_data["position"]
-                            ).ravel()
+                            pos_samples = np.asarray(bundle_data["position"]).ravel()
                             num_samples = len(pos_samples)
                             if num_samples > 0:
                                 t_arr = self._extract_timestamps(
                                     bundle_data, num_samples, now
                                 )
                                 self._motor_pos_times[motor_id].extend(t_arr)
-                                self._motor_pos_values[motor_id].extend(
-                                    pos_samples
-                                )
+                                self._motor_pos_values[motor_id].extend(pos_samples)
                                 self._latest_time = max(
                                     self._latest_time, float(t_arr[-1])
                                 )
 
                         if "velocity" in bundle_data:
-                            vel_samples = np.asarray(
-                                bundle_data["velocity"]
-                            ).ravel()
+                            vel_samples = np.asarray(bundle_data["velocity"]).ravel()
                             num_samples = len(vel_samples)
                             if num_samples > 0:
                                 t_arr = self._extract_timestamps(
                                     bundle_data, num_samples, now
                                 )
                                 self._motor_vel_times[motor_id].extend(t_arr)
-                                self._motor_vel_values[motor_id].extend(
-                                    vel_samples
-                                )
+                                self._motor_vel_values[motor_id].extend(vel_samples)
                                 self._latest_time = max(
                                     self._latest_time, float(t_arr[-1])
                                 )
 
                         if "current" in bundle_data:
-                            cur_samples = np.asarray(
-                                bundle_data["current"]
-                            ).ravel()
+                            cur_samples = np.asarray(bundle_data["current"]).ravel()
                             num_samples = len(cur_samples)
                             if num_samples > 0:
                                 t_arr = self._extract_timestamps(
                                     bundle_data, num_samples, now
                                 )
                                 self._motor_cur_times[motor_id].extend(t_arr)
-                                self._motor_cur_values[motor_id].extend(
-                                    cur_samples
-                                )
+                                self._motor_cur_values[motor_id].extend(cur_samples)
                                 self._latest_time = max(
                                     self._latest_time, float(t_arr[-1])
                                 )
@@ -1101,17 +1074,12 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                                 bundle_data, num_samples, now
                             )
                             self._encoder_times[encoder_id].extend(t_arr)
-                            self._encoder_values[encoder_id].extend(
-                                angle_samples
-                            )
-                            self._latest_time = max(
-                                self._latest_time, float(t_arr[-1])
-                            )
+                            self._encoder_values[encoder_id].extend(angle_samples)
+                            self._latest_time = max(self._latest_time, float(t_arr[-1]))
 
                 # 4. Live AI Intent prediction updates
-                elif (
-                    bundle_name in ("intent", "ai_intent")
-                    or bundle_name.startswith("intent")
+                elif bundle_name in ("intent", "ai_intent") or bundle_name.startswith(
+                    "intent"
                 ):
                     self._handle_ai_intent(bundle_data, now)
 
@@ -1156,43 +1124,33 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                     t_buf = self._imu_times[loc][ch]
                     if t_buf:
                         t_arr = np.asarray(t_buf, dtype=np.float64)
-                        y_arr = np.asarray(
-                            self._imu_values[loc][ch], dtype=np.float32
-                        )
+                        y_arr = np.asarray(self._imu_values[loc][ch], dtype=np.float32)
                         self._curves_imu[loc][ch].setData(t_arr - cur_t, y_arr)
 
             for enc_id in self.ENCODER_IDS:
                 t_buf = self._encoder_times[enc_id]
                 if t_buf:
                     t_arr = np.asarray(t_buf, dtype=np.float64)
-                    y_arr = np.asarray(
-                        self._encoder_values[enc_id], dtype=np.float32
-                    )
+                    y_arr = np.asarray(self._encoder_values[enc_id], dtype=np.float32)
                     self._curves_encoder[enc_id].setData(t_arr - cur_t, y_arr)
 
             for m_id in self.MOTOR_IDS:
                 t_buf = self._motor_pos_times[m_id]
                 if t_buf:
                     t_arr = np.asarray(t_buf, dtype=np.float64)
-                    y_arr = np.asarray(
-                        self._motor_pos_values[m_id], dtype=np.float32
-                    )
+                    y_arr = np.asarray(self._motor_pos_values[m_id], dtype=np.float32)
                     self._curves_motor_pos[m_id].setData(t_arr - cur_t, y_arr)
 
                 t_buf = self._motor_vel_times[m_id]
                 if t_buf:
                     t_arr = np.asarray(t_buf, dtype=np.float64)
-                    y_arr = np.asarray(
-                        self._motor_vel_values[m_id], dtype=np.float32
-                    )
+                    y_arr = np.asarray(self._motor_vel_values[m_id], dtype=np.float32)
                     self._curves_motor_vel[m_id].setData(t_arr - cur_t, y_arr)
 
                 t_buf = self._motor_cur_times[m_id]
                 if t_buf:
                     t_arr = np.asarray(t_buf, dtype=np.float64)
-                    y_arr = np.asarray(
-                        self._motor_cur_values[m_id], dtype=np.float32
-                    )
+                    y_arr = np.asarray(self._motor_cur_values[m_id], dtype=np.float32)
                     self._curves_motor_cur[m_id].setData(t_arr - cur_t, y_arr)
 
             # Refresh AI intent bar chart

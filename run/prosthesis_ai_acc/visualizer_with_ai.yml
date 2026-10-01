@@ -109,7 +109,7 @@ pipeline_specs:
     topic: "ai_intent"
     settings:
       data_out_spec:
-        config_path: "src/hermes/aidwear/ai_intent/utils/configs/config.yml"
+        config_path: "src/hermes/aidwear/ai_intent/utils/configs/cybathlon_dcl_acc.yml"
         device: "cuda"
         imu_type: "nicla"
         module_params:
@@ -133,34 +133,34 @@ pipeline_specs:
             raw_imu:
               num_features:
                 - 180
-                - 30
+                - 15
               dtype: "float32"
         modalities:
           raw_imu:
             pelvis:
               buf_len: 300
               num_features:
-                - 6
+                - 3
               dtype: "float32"
             thigh_right:
               buf_len: 300
               num_features:
-                - 6
+                - 3
               dtype: "float32"
             thigh_left:
               buf_len: 300
               num_features:
-                - 6
+                - 3
               dtype: "float32"
             shank_right:
               buf_len: 300
               num_features:
-                - 6
+                - 3
               dtype: "float32"
             shank_left:
               buf_len: 300
               num_features:
-                - 6
+                - 3
               dtype: "float32"
 
       data_in_specs:

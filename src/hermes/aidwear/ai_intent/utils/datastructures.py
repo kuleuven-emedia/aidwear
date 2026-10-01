@@ -11,7 +11,7 @@ Description: PyTorch circular buffer in shared pinned memory
 from dataclasses import dataclass
 from multiprocessing import Value
 from multiprocessing.sharedctypes import Synchronized
-from typing import Callable, Concatenate, List, ParamSpec, Sequence
+from typing import Callable, Concatenate, List, Optional, ParamSpec, Sequence
 import torch
 from torch import Tensor
 import torch.multiprocessing as mp
@@ -25,6 +25,7 @@ class BufferSlice:
     tensor: Tensor
     window_start_s: np.ndarray
     window_end_s: np.ndarray
+    toa_s: Optional[Tensor] = None
 
 
 class SharedTensorCircularBuffer:
@@ -110,14 +111,24 @@ class SharedTensorCircularBuffer:
             self.is_writing.value = False
             self.write_head.value = write_head
 
-    def reserve(self, num_samples: int) -> tuple[List[Tensor], float, float]:
+    def reserve(
+        self, num_samples: int, return_toa: bool = False
+    ) -> (
+        tuple[List[Tensor], float, float]
+        | tuple[List[Tensor], List[Tensor], float, float]
+    ):
         """Reserve the N newest samples for reading.
 
         Sets the reading flag to True to prevent the producer from overwriting
         this range until `release()` is called.
 
+        Args:
+            num_samples (int): Number of newest samples to reserve.
+            return_toa (bool, optional): Whether to return matching toa_s tensor slices. Defaults to False.
+
         Returns:
-            tuple[List[Tensor], float, float]: The data slice (potentially non-contiguous), start time, end time.
+            tuple: If return_toa is False: (tensor_slices, window_start_s, window_end_s).
+                If return_toa is True: (tensor_slices, toa_slices, window_start_s, window_end_s).
         """
         with self.metadata_lock:
             read_head = self.write_head.value
@@ -129,18 +140,24 @@ class SharedTensorCircularBuffer:
         num_rows = (read_head - read_tail) % self.buf_len
 
         if num_rows == 0:
-            return self.buffer[:0], 0.0, 0.0
+            if return_toa:
+                return [self.buffer[:0]], [self.toa_s[:0]], 0.0, 0.0
+            return [self.buffer[:0]], 0.0, 0.0
 
         if read_tail < read_head:
             tensor_slices = [self.buffer[read_tail:read_head]]
+            toa_slices = [self.toa_s[read_tail:read_head]]
         else:
             first_part = self.buffer[read_tail:]
             second_part = self.buffer[:read_head]
             tensor_slices = [first_part, second_part]
+            toa_slices = [self.toa_s[read_tail:], self.toa_s[:read_head]]
 
         window_start_s = float(self.toa_s[read_tail].item())
         window_end_s = float(self.toa_s[read_head - 1].item())
 
+        if return_toa:
+            return tensor_slices, toa_slices, window_start_s, window_end_s
         return tensor_slices, window_start_s, window_end_s
 
     def release(self) -> None:

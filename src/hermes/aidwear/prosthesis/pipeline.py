@@ -215,25 +215,21 @@ class ProsthesisPipeline(Pipeline):
             "telemetry": all_telemetry,
             "all": all_telemetry,
             "data": all_telemetry,
-
             # Nicla grouping
             "telemetry.nicla.all": nicla_bundles,
             "telemetry.nicla": nicla_bundles,
             "nicla.all": nicla_bundles,
             "nicla": nicla_bundles,
-
             # Motor grouping
             "telemetry.motor.all": motor_bundles,
             "telemetry.motor": motor_bundles,
             "motor.all": motor_bundles,
             "motor": motor_bundles,
-
             # Encoder grouping
             "telemetry.encoder.all": encoder_bundles,
             "telemetry.encoder": encoder_bundles,
             "encoder.all": encoder_bundles,
             "encoder": encoder_bundles,
-
             # Mode, state, phase
             "telemetry.mode": ["mode"],
             "mode": ["mode"],
@@ -304,9 +300,9 @@ class ProsthesisPipeline(Pipeline):
                     ].item()
             elif "calibration_cmd" in msg:
                 with self._next_calibration_event.lock:
-                    self._next_calibration_event.next_value.value = msg["calibration_cmd"][
-                        "type"
-                    ].item()
+                    self._next_calibration_event.next_value.value = msg[
+                        "calibration_cmd"
+                    ]["type"].item()
                     self._next_is_pause.sequence_id.value = msg["calibration_cmd"][
                         "sequence_id"
                     ].item()
@@ -545,36 +541,36 @@ class ProsthesisPipeline(Pipeline):
             if calibration_data[CalibrationEventType.NICLA]:
                 output["nicla_calibration"] = {
                     "toa_s": np.array(
-                        [[
-                            c.timestamp for c
-                            in calibration_data[CalibrationEventType.NICLA]
-                        ]],
+                        [
+                            c.timestamp
+                            for c in calibration_data[CalibrationEventType.NICLA]
+                        ],
                         dtype=np.float64,
-                    ).transpose((1, 0)),
+                    )[:, None],
                     "offsets": np.array(
                         [
-                            list(c.offsets.values()) for c
-                            in calibration_data[CalibrationEventType.NICLA]
+                            list(c.offsets.values())
+                            for c in calibration_data[CalibrationEventType.NICLA]
                         ],
                         dtype=np.float32,
-                    ).transpose((1, 0)),
+                    ),
                 }
             if calibration_data[CalibrationEventType.ENCODER]:
                 output["encoder_calibration"] = {
                     "toa_s": np.array(
-                        [[
-                            c.timestamp for c
-                            in calibration_data[CalibrationEventType.ENCODER]
-                        ]],
+                        [
+                            c.timestamp
+                            for c in calibration_data[CalibrationEventType.ENCODER]
+                        ],
                         dtype=np.float64,
-                    ).transpose((1, 0)),
+                    )[:, None],
                     "offsets": np.array(
                         [
-                            list(c.offsets.values()) for c
-                            in calibration_data[CalibrationEventType.ENCODER]
+                            list(c.offsets.values())
+                            for c in calibration_data[CalibrationEventType.ENCODER]
                         ],
                         dtype=np.float32,
-                    ).transpose((1, 0)),
+                    ),
                 }
 
             self._publish(process_time_s=get_time(), new_data=output)

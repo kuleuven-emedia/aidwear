@@ -39,8 +39,8 @@ class Idle(StateMachine, ProsthesisStateMachine):
         #   Commands will be logged by HERMES and drives will track target themselves,
         #   while reporting current values.
         # Set target positions using the high-level Facade
-        #self._ctx.epos.set_target_position(MotorId.ANKLE, 0)
-        #self._ctx.epos.set_target_position(MotorId.KNEE, 0)
+        # self._ctx.epos.set_target_position(MotorId.ANKLE, 0)
+        # self._ctx.epos.set_target_position(MotorId.KNEE, 0)
         pass
 
     def update_sensor_values(self, **kwargs):

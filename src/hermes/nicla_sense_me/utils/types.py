@@ -6,7 +6,6 @@ Version: 1.0
 Description: Nicla Sense ME specific data types.
 """
 
-
 from __future__ import annotations
 
 from typing import List
@@ -23,7 +22,6 @@ import numpy as np
 from multiprocessing import Lock
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.synchronize import Lock as _Lock
-
 
 
 class CalibrationEventType(Enum):
@@ -239,7 +237,9 @@ class NiclaSampleSynchronized:
         if name is not None:
             assert lock is not None
             self._lock = lock
-            self._shm = SharedMemory(name=name, size=size)  # NOTE: creates a 4096 shared mem
+            self._shm = SharedMemory(
+                name=name, size=size
+            )  # NOTE: creates a 4096 shared mem
             self.size = size
         else:
             self._lock = Lock()
@@ -267,12 +267,12 @@ class NiclaSampleSynchronized:
     @property
     def data(self) -> NiclaData:
         with self._lock:
-            return NiclaData.from_bytes(data=self._shm.buf[:self.size])
+            return NiclaData.from_bytes(data=self._shm.buf[: self.size])
 
     @data.setter
     def data(self, raw_data: bytearray) -> None:
         with self._lock:
-            self._shm.buf[:self.size] = raw_data
+            self._shm.buf[: self.size] = raw_data
 
     def close(self) -> None:
         self._shm.close()

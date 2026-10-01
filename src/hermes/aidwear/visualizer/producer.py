@@ -85,25 +85,21 @@ class DummyProducer(Producer):
             "telemetry": all_telemetry,
             "all": all_telemetry,
             "data": all_telemetry,
-
             # Nicla grouping
             "telemetry.nicla.all": nicla_bundles,
             "telemetry.nicla": nicla_bundles,
             "nicla.all": nicla_bundles,
             "nicla": nicla_bundles,
-
             # Motor grouping
             "telemetry.motor.all": motor_bundles,
             "telemetry.motor": motor_bundles,
             "motor.all": motor_bundles,
             "motor": motor_bundles,
-
             # Encoder grouping
             "telemetry.encoder.all": encoder_bundles,
             "telemetry.encoder": encoder_bundles,
             "encoder.all": encoder_bundles,
             "encoder": encoder_bundles,
-
             # Intent and mode
             "telemetry.intent": ["intent"],
             "intent": ["intent"],

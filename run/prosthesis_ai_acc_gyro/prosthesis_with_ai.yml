@@ -1,0 +1,256 @@
+host_ip: "192.168.0.102"
+is_master_broker: False
+
+remote_subscriber_ips:
+  - "192.168.0.110"
+remote_publisher_ips: []
+connections: []
+
+is_remote_kill: True
+remote_kill_ip: "192.168.0.110"
+
+logging_spec:
+  stream_period_s: 30
+  stream_hdf5: True
+
+video_codec_config_filepath: null
+audio_codec_config_filepath: null
+
+producer_specs:
+  - package: "aidwear.cli"
+    class: "CliProducer"
+    node_id: "cli_control"
+    settings:
+      buf_len: 1_000
+
+  - package: "aidwear.gui"
+    class: "PhoneGuiProducer"
+    node_id: "gui_control"
+    settings:
+      phone_ip: "192.168.0.111"
+      phone_port: 6000
+      buf_len: 1_000
+
+consumer_specs: []
+
+pipeline_specs:
+  - package: "aidwear.prosthesis"
+    class: "ProsthesisPipeline"
+    node_id: "prosthesis"
+    settings:
+      data_out_spec:
+        dt: 0.01
+        base_assistance: 50.0
+        is_immediate_mode_switch: True
+        num_majority_vote: 5
+        fsm_config_path: null # "run/fsm_config_default.yml"
+        niclas:
+          buf_len: 3_000
+          sampling_rate_hz: 90
+          connection_type: "BLE" # BLE or I2C
+          is_pelvis_and_feet: False
+          device_mapping: # for BLE connection type
+            torso: "D8:4E:18:CC:F6:62"
+            thigh_right: "4D:8B:11:D5:F2:46"
+            thigh_left: "DF:CA:13:E0:E1:59"
+            shank_right: "96:CD:19:11:5B:F7"
+            shank_left: "D5:A0:BA:27:CA:09"
+          service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
+          char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
+          gravity_scaling_factor: 4
+          gyroscope_scaling_factor: 500
+          is_acc: True
+          is_gyr: True
+          is_mag: False
+          is_euler: True
+          is_quat: False
+          is_temp: False
+          is_baro: False
+          is_hum: False
+        motors:
+          is_emulate_can: False # creates a virtual CAN bus for testing.
+          epos:
+            device: "EPOS4"
+            protocol: "CAN_OPEN"
+            interface: "CAN_mcp251xfd 0"
+            port: "CAN0"
+            baudrate: 500_000
+            timeout_ms: 500
+          device_mapping:
+            knee:
+              can_id: 1
+              type: "AK10_9"
+              homing:
+                homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
+                acceleration: 1_000
+                speed_switch: 600
+                speed_index: 600
+                current_threshold_ma: 2_000
+                home_offset_enc_ticks: 0
+                home_position_coordinate: 0
+              absolute_encoder_reference: 180.0
+            ankle:
+              can_id: 2
+              type: "AK80_8"
+              homing:
+                homing_method: "CURRENT_THRESHOLD_NEGATIVE_SPEED"
+                acceleration: 1_000
+                speed_switch: 900
+                speed_index: 900
+                current_threshold_ma: 1_000
+                home_offset_enc_ticks: -130_000
+                home_position_coordinate: 0
+              absolute_encoder_reference: 90.0
+          sampling_rate_hz: 100
+          buf_len: 3_000
+        telemetry:
+          buf_len: 30_000
+
+      data_in_specs:
+        - package: "aidwear.cli"
+          class: "CliProducer"
+          node_id: "cli_control"
+          topics:
+            - "intent"
+            - "safety_stop"
+          settings:
+            buf_len: 1_000
+
+        - package: "aidwear.gui"
+          class: "PhoneGuiProducer"
+          node_id: "gui_control"
+          topics:
+            - "intent"
+            - "safety_stop"
+            - "calibration_cmd"
+          settings:
+            phone_ip: "192.168.0.111"
+            phone_port: 6000
+            buf_len: 1_000
+
+        - package: "aidwear.ai_intent"
+          class: "IntentClassifierPipeline"
+          topic: "ai_intent"
+          topics:
+            - "intent"
+          settings:
+            buf_len: 10_000
+            horizons: [0]
+            classes:
+              Level-Ground Walking: 0
+              Hurdles: 1
+              Stair Ascent: 2
+              Stair Descent: 3
+              Cross Country: 4
+              Ladder: 5
+              Slope Ascent: 6
+              Slope Descent: 7
+              Wobbly Steps: 8
+              Step Over: 9
+              Bench: 10
+              Balance Beam: 11
+              High-step": 12
+            in_streams:
+              - "pelvis"
+              - "thigh_right"
+              - "thigh_left"
+              - "shank_right"
+              - "shank_left"
+
+  - package: "aidwear.ai_intent"
+    class: "IntentClassifierPipeline"
+    topic: "ai_intent"
+    settings:
+      data_out_spec:
+        config_path: "src/hermes/aidwear/ai_intent/utils/configs/cybathlon_dcl_acc_gyro.yml"
+        device: "cpu"
+        imu_type: "nicla"
+        module_params:
+          buf_len: 10_000
+          prediction_horizons: [0]
+          output_classes:
+            Level-Ground Walking: 0
+            Hurdles: 1
+            Stair Ascent: 2
+            Stair Descent: 3
+            Cross Country: 4
+            Ladder: 5
+            Slope Ascent: 6
+            Slope Descent: 7
+            Wobbly Steps: 8
+            Step Over: 9
+            Bench: 10
+            Balance Beam: 11
+            High-step": 12
+          input_features:
+            raw_imu:
+              num_features:
+                - 180
+                - 30
+              dtype: "float32"
+        modalities:
+          raw_imu:
+            pelvis:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            thigh_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_right:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+            shank_left:
+              buf_len: 300
+              num_features:
+                - 6
+              dtype: "float32"
+
+      data_in_specs:
+        - package: "aidwear.prosthesis"
+          class: "ProsthesisPipeline"
+          node_id: "prosthesis"
+          topics:
+            - "telemetry.nicla.all"
+          settings:
+            niclas:
+              buf_len: 10_000
+              sampling_rate_hz: 90
+              connection_type: "BLE" # BLE or I2C
+              is_pelvis_and_feet: False
+              device_mapping:
+                torso: "D8:4E:18:CC:F6:62"
+                thigh_right: "4D:8B:11:D5:F2:46"
+                thigh_left: "A3:2F:AF:84:4E:1D"
+                shank_right: "96:CD:19:11:5B:F7"
+                shank_left: "D5:A0:BA:27:CA:09"
+              gravity_scaling_factor: 4
+              gyroscope_scaling_factor: 500
+              is_acc: True
+              is_gyr: True
+              is_mag: False
+              is_euler: True
+              is_quat: False
+              is_temp: False
+              is_baro: False
+              is_hum: False
+            motors:
+              device_mapping:
+                knee:
+                  can_id: 1
+                ankle:
+                  can_id: 2
+              sampling_rate_hz: 100
+              buf_len: 10_000
+            telemetry:
+              buf_len: 1_000

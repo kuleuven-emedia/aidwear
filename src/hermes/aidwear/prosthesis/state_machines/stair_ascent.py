@@ -92,7 +92,7 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
 
         self._ctx = ctx
         self._K = ctx.K
-        #self._motor_latest_data = ctx._motor_latest_data
+        # self._motor_latest_data = ctx._motor_latest_data
         self._state_changed_queue = ctx.state_changed_queue
         self._phase_estimate_queue = ctx.phase_estimate_queue
         self._motor_command_queue = ctx.motor_command_queue
@@ -119,7 +119,7 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
 
         # activate_position_mode(self._ctx.handle, MotorId.ANKLE)
         # activate_position_mode(self._ctx.handle, MotorId.KNEE)
-        
+
         # Parameters for motor control
         self._swing_stiffness = 0.1
         self._swing_damping = 0.05
@@ -213,7 +213,9 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
             - self._swing_damping * self._knee_velocity
         )
 
-        knee_current = ((self._target_knee_torque * 8) * 1000) / ((5 / 9) * self._knee_pr_roll + 10)
+        knee_current = ((self._target_knee_torque * 8) * 1000) / (
+            (5 / 9) * self._knee_pr_roll + 10
+        )
         self._knee_current = int(
             np.clip(
                 knee_current,
@@ -222,7 +224,7 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
             )
         )
         self._ctx.epos.set_target_current(MotorId.KNEE, self._knee_current)
-    
+
         if abs(self._thigh_pr_gyr) < 25:
             self._inactivity_dur += self._gain_step
         else:
@@ -233,9 +235,12 @@ class StairAscent(StateMachine, ProsthesisStateMachine):
         if self._step_up_dur < self._param.risetime:
             self._torque_knee_reference = max(
                 self._target_knee_torque,
-                self._torque_knee_reference * (self._step_up_dur / self._param.risetime),
+                self._torque_knee_reference
+                * (self._step_up_dur / self._param.risetime),
             )
-        knee_current = ((self._target_knee_torque * 8) * 1000) / ((5 / 9) * self._knee_pr_roll + 10)
+        knee_current = ((self._target_knee_torque * 8) * 1000) / (
+            (5 / 9) * self._knee_pr_roll + 10
+        )
         self._knee_current = int(
             np.clip(
                 knee_current,

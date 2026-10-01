@@ -35,6 +35,7 @@ from .utils import (
     preprocess_image,
     preprocess_sync_imu,
     preprocess_video,
+    resample_async_imu,
 )
 
 
@@ -103,6 +104,18 @@ class IntentClassifierHandler:
             torch, f"uint{self._config.predictions_bit_width}"
         )
 
+        if ModalityType.RAW_IMU in self._config.modalities and self._imu_type != "mvn":
+            num_samples = self._config.modalities[ModalityType.RAW_IMU].receptive_field
+            num_dev = len(self._feature_mapping[ModalityType.RAW_IMU])
+            self._staging_toa_s = torch.zeros(
+                num_samples,
+                num_dev,
+                dtype=torch.float64,
+                device=self._device,
+            )
+        else:
+            self._staging_toa_s = None
+
         # Initialize independent CUDA streams for parallelizing data transfer of modalities
         self._cuda_streams = {
             mod: cuda.Stream(device=self._device)
@@ -150,6 +163,7 @@ class IntentClassifierHandler:
             releasers: list = []
             start_time_s: float = get_time()
 
+            # TODO: preprocess/resample IMU data straight into the staging buffer
             if ModalityType.RAW_IMU in self._config.modalities:
                 stream = self._cuda_streams.get(ModalityType.RAW_IMU)
                 with cuda.stream(stream):
@@ -165,6 +179,7 @@ class IntentClassifierHandler:
                     else:
                         buf_slice, rel = preprocess_async_imu(
                             staging_tensor=self._staging_tensor[ModalityType.RAW_IMU],
+                            staging_toa_s=self._staging_toa_s,
                             imu_buffers=self._input_buffer[ModalityType.RAW_IMU],
                             num_samples=self._config.modalities[
                                 ModalityType.RAW_IMU
@@ -212,33 +227,44 @@ class IntentClassifierHandler:
 
             inputs = {mod: buf_slice.tensor for mod, buf_slice in buffer_slices.items()}
 
-            # TODO: resample w.r.t. the `toa_s` of the data, not simply "latest data".
             if ModalityType.RAW_IMU.value in inputs and self._imu_type != "mvn":
-                # Downsample async IMU data from ~90Hz to 60Hz (2s receptive field window -> 120 samples)
                 raw_imu = inputs[ModalityType.RAW_IMU.value]
-                target_samples = 120
-                if raw_imu.shape[-2] != target_samples:
-                    if raw_imu.ndim == 2:
-                        inputs[ModalityType.RAW_IMU.value] = (
-                            F.interpolate(
-                                raw_imu.unsqueeze(0).transpose(1, 2),
-                                size=target_samples,
-                                mode="linear",
-                                align_corners=True,
+                buf_slice = buffer_slices[ModalityType.RAW_IMU.value]
+                toa_s = buf_slice.toa_s
+
+                if toa_s is not None:
+                    # Mask out elements exceeding the 2-s window using per-sensor toa_s and interpolate to 120 time-aligned samples
+                    num_dev = len(self._feature_mapping[ModalityType.RAW_IMU])
+                    inputs[ModalityType.RAW_IMU.value] = resample_async_imu(
+                        raw_imu=raw_imu,
+                        toa_s=toa_s,
+                        current_time_s=start_time_s,
+                        window_duration_s=2.0,
+                        target_samples=120,
+                        num_dev=num_dev,
+                    )
+                else:
+                    # Fallback to uniform 1D interpolation if toa_s is unavailable
+                    target_samples = 120
+                    if raw_imu.shape[-2] != target_samples:
+                        if raw_imu.ndim == 2:
+                            inputs[ModalityType.RAW_IMU.value] = (
+                                F.interpolate(
+                                    raw_imu.unsqueeze(0).transpose(1, 2),
+                                    size=target_samples,
+                                    mode="linear",
+                                    align_corners=True,
+                                )
+                                .transpose(1, 2)
+                                .squeeze(0)
                             )
-                            .transpose(1, 2)
-                            .squeeze(0)
-                        )
-                    elif raw_imu.ndim == 3:
-                        inputs[ModalityType.RAW_IMU.value] = (
-                            F.interpolate(
+                        elif raw_imu.ndim == 3:
+                            inputs[ModalityType.RAW_IMU.value] = F.interpolate(
                                 raw_imu.transpose(1, 2),
                                 size=target_samples,
                                 mode="linear",
                                 align_corners=True,
-                            )
-                            .transpose(1, 2)
-                        )
+                            ).transpose(1, 2)
 
             if self._modality_type == ModalityType.MULTIMODAL:
                 logits: Tensor = self._model(**inputs)
@@ -277,14 +303,14 @@ class IntentClassifierHandler:
             self._counter += 1
 
             # Print the prediction to the CLI.
-            parts = [
-                f"[t={end_time_s:.2f}s | {(end_time_s - start_time_s) * 1000:.1f}ms]"
-            ]
-            for i, h in enumerate(self._config.prediction_horizons):
-                pred = predictions[i].item()
-                label = self._num_to_label[pred]
-                parts.append(f"h={h}s: {label}")
-            print(parts, flush=True)
+            # parts = [
+            #     f"[t={end_time_s:.2f}s | {(end_time_s - start_time_s) * 1000:.1f}ms]"
+            # ]
+            # for i, h in enumerate(self._config.prediction_horizons):
+            #     pred = predictions[i].item()
+            #     label = self._num_to_label[pred]
+            #     parts.append(f"h={h}s: {label}")
+            # print(parts, flush=True)
 
         self._is_finished_event.set()
         print("PyTorch subprocess finished processing loop.", flush=True)

@@ -17,7 +17,11 @@ from hermes.utils.zmq_utils import PORT_BACKEND, PORT_SYNC_HOST, PORT_KILL
 from hermes.utils.time_utils import get_time
 from hermes.utils.types import LoggingSpec
 
-from hermes.nicla_sense_me.utils.types import NiclaData, NiclaPayloadMode, CalibrationEvent 
+from hermes.nicla_sense_me.utils.types import (
+    NiclaData,
+    NiclaPayloadMode,
+    CalibrationEvent,
+)
 from .data_container import NiclaSenseMeDataContainer
 from .handler import NiclaSenseMeHandler
 
@@ -109,7 +113,6 @@ class NiclaSenseMeProducer(Producer):
             "telemetry": nicla_bundles,
             "all": nicla_bundles,
             "data": nicla_bundles,
-
             # Nicla grouping
             "telemetry.nicla.all": nicla_bundles,
             "telemetry.nicla": nicla_bundles,

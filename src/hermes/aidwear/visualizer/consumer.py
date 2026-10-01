@@ -99,9 +99,7 @@ class VisualizerConsumer(Consumer):
         for spec in data_in_specs:
             settings = spec.get("settings", {})
             if "classes" in settings and isinstance(settings["classes"], dict):
-                sorted_classes = sorted(
-                    settings["classes"].items(), key=lambda x: x[1]
-                )
+                sorted_classes = sorted(settings["classes"].items(), key=lambda x: x[1])
                 class_names = [name for name, _ in sorted_classes]
                 break
 
@@ -187,7 +185,15 @@ if __name__ == "__main__":
             },
             "nicla_thigh_left": {
                 "toa_s": np.array([sample_time]),
-                "euler": np.array([[np.sin(t * 2.2 + 1.0), np.cos(t * 1.7 + 1.0), np.sin(t * 2.8 + 1.0)]])
+                "euler": np.array(
+                    [
+                        [
+                            np.sin(t * 2.2 + 1.0),
+                            np.cos(t * 1.7 + 1.0),
+                            np.sin(t * 2.8 + 1.0),
+                        ]
+                    ]
+                )
                 * 45.0,
             },
             "nicla_shank_right": {
@@ -197,7 +203,15 @@ if __name__ == "__main__":
             },
             "nicla_shank_left": {
                 "toa_s": np.array([sample_time]),
-                "euler": np.array([[np.sin(t * 3.0 + 1.0), np.cos(t * 2.5 + 1.0), np.sin(t * 3.5 + 1.0)]])
+                "euler": np.array(
+                    [
+                        [
+                            np.sin(t * 3.0 + 1.0),
+                            np.cos(t * 2.5 + 1.0),
+                            np.sin(t * 3.5 + 1.0),
+                        ]
+                    ]
+                )
                 * 60.0,
             },
             "motor_knee": {
@@ -221,16 +235,20 @@ if __name__ == "__main__":
                 "angle": np.array([10.0 + 15.0 * np.sin(t * 2.5)]),
             },
             "intent": {
-                "predictions": np.array([[
-                    0.75 + 0.15 * np.sin(t * 1.5),
-                    0.05,
-                    0.08 + 0.05 * np.cos(t * 1.5),
-                    0.04,
-                    0.03,
-                    0.02,
-                    0.02,
-                    0.01,
-                ]]),
+                "predictions": np.array(
+                    [
+                        [
+                            0.75 + 0.15 * np.sin(t * 1.5),
+                            0.05,
+                            0.08 + 0.05 * np.cos(t * 1.5),
+                            0.04,
+                            0.03,
+                            0.02,
+                            0.02,
+                            0.01,
+                        ]
+                    ]
+                ),
                 "logits": np.array([[2.5, -0.5, 0.2, -0.8, -1.0, -1.5, -1.5, -2.0]]),
                 "toa_s": np.array([[sample_time]]),
                 "compute_time_s": np.array([[0.0125 + 0.003 * np.sin(t * 5.0)]]),

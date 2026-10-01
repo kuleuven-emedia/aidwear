@@ -1,49 +1,29 @@
-host_ip: "127.0.0.1"
+host_ip: "192.168.0.110"
 is_master_broker: True
 
-remote_subscriber_ips: []
-remote_publisher_ips: []
-connections: []
+remote_subscriber_ips:
+  - "192.168.0.102"  # prosthesis receives AI commands
+remote_publisher_ips:
+  - "192.168.0.102"  # prosthesis sends telemetry data
+connections:
+  - ssh_username: "aidwear"
+    ssh_host_ip: "192.168.0.102"
+    platform: "Linux"
+    pre_hook: "./run/prehook_prosthesis.sh"
+    config_filepath: "./run/prosthesis_ai/prosthesis.yml"
+    project_dir: "~/aidwear"
+    output_dir: "./data"
 
 is_remote_kill: False
 remote_kill_ip: null
 
 logging_spec:
-  stream_period_s: 30
-  stream_hdf5: True
+  stream_period_s: 60
 
 video_codec_config_filepath: null
 audio_codec_config_filepath: null
 
-producer_specs:
-  - package: "nicla_sense_me"
-    class: "NiclaSenseMeProducer"
-    node_id: "niclas"
-    settings:
-      niclas:
-        buf_len: 10_000
-        sampling_rate_hz: 90
-        connection_type: "BLE" # BLE or I2C
-        is_pelvis_and_feet: False
-        device_mapping: # for BLE connection type
-          torso: "D8:4E:18:CC:F6:62"
-          thigh_right: "4D:8B:11:D5:F2:46"
-          thigh_left: "DF:CA:13:E0:E1:59"
-          shank_right: "96:CD:19:11:5B:F7"
-          shank_left: "D5:A0:BA:27:CA:09"
-        service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
-        char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
-        gravity_scaling_factor: 4
-        gyroscope_scaling_factor: 500
-        is_acc: True
-        is_gyr: True
-        is_mag: False
-        is_euler: True
-        is_quat: False
-        is_temp: False
-        is_baro: False
-        is_hum: False
-
+producer_specs: []
 
 consumer_specs:
   - package: "aidwear.visualizer"
@@ -54,39 +34,47 @@ consumer_specs:
       draw_interval_s: 0.04
       dark_mode: True
       data_in_specs:
-        - package: "nicla_sense_me"
-          class: "DummyNiclaSenseMeProducer"
-          node_id: "niclas"
+        - package: "aidwear.prosthesis"
+          class: "ProsthesisPipeline"
+          node_id: "prosthesis"
           topics:
-            - "nicla.all"
+            - "telemetry.all"
           settings:
             niclas:
-              buf_len: 10_000
+              buf_len: 100
               sampling_rate_hz: 90
-              connection_type: "BLE" # BLE or I2C
+              connection_type: "BLE"
               is_pelvis_and_feet: False
-              device_mapping:  # for BLE connection type
+              device_mapping:
                 torso: "D8:4E:18:CC:F6:62"
                 thigh_right: "4D:8B:11:D5:F2:46"
-                thigh_left: "DF:CA:13:E0:E1:59"
+                thigh_left: "A3:2F:AF:84:4E:1D"
                 shank_right: "96:CD:19:11:5B:F7"
                 shank_left: "D5:A0:BA:27:CA:09"
-              service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
-              char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
               gravity_scaling_factor: 4
               gyroscope_scaling_factor: 500
-              is_acc    : True
-              is_gyr    : True
-              is_mag    : False
-              is_euler  : True
-              is_quat   : False
-              is_temp   : False
-              is_baro   : False
-              is_hum    : False
+              is_acc: True
+              is_gyr: True
+              is_mag: False
+              is_euler: True
+              is_quat: False
+              is_temp: False
+              is_baro: False
+              is_hum: False
+            motors:
+              device_mapping:
+                knee:
+                  can_id: 1
+                ankle:
+                  can_id: 2
+              sampling_rate_hz: 100
+              buf_len: 100
+            telemetry:
+              buf_len: 100
 
         - package: "aidwear.ai_intent"
           class: "IntentClassifierPipeline"
-          node_id: "ai_intent"
+          topic: "ai_intent"
           topics:
             - "intent"
           settings:
@@ -112,21 +100,20 @@ consumer_specs:
               - "thigh_left"
               - "shank_right"
               - "shank_left"
-
+    logging_spec:
+      stream_period_s: 60
 
 pipeline_specs:
   - package: "aidwear.ai_intent"
     class: "IntentClassifierPipeline"
-    node_id: "ai_intent"
+    topic: "ai_intent"
     settings:
       data_out_spec:
-        config_path: "src/hermes/aidwear/ai_intent/utils/configs/config.yml"
+        config_path: "src/hermes/aidwear/ai_intent/utils/configs/cybathlon_dcl_acc_gyro.yml"
         device: "cuda"
         imu_type: "nicla"
-        buf_len: 10_000
-        gravity_scaling_factor: 4
-        gyroscope_scaling_factor: 500
         module_params:
+          buf_len: 10_000
           prediction_horizons: [0]
           output_classes:
             Level-Ground Walking: 0
@@ -150,7 +137,7 @@ pipeline_specs:
               dtype: "float32"
         modalities:
           raw_imu:
-            torso:
+            pelvis:
               buf_len: 300
               num_features:
                 - 6
@@ -177,32 +164,40 @@ pipeline_specs:
               dtype: "float32"
 
       data_in_specs:
-        - package: "nicla_sense_me"
-          class: "NiclaSenseMeProducer"
-          node_id: "niclas"
+        - package: "aidwear.prosthesis"
+          class: "ProsthesisPipeline"
+          node_id: "prosthesis"
           topics:
-            - "nicla.all"
+            - "telemetry.nicla.all"
           settings:
             niclas:
               buf_len: 10_000
               sampling_rate_hz: 90
               connection_type: "BLE" # BLE or I2C
               is_pelvis_and_feet: False
-              device_mapping:  # for BLE connection type
+              device_mapping:
                 torso: "D8:4E:18:CC:F6:62"
                 thigh_right: "4D:8B:11:D5:F2:46"
-                thigh_left: "DF:CA:13:E0:E1:59"
+                thigh_left: "A3:2F:AF:84:4E:1D"
                 shank_right: "96:CD:19:11:5B:F7"
                 shank_left: "D5:A0:BA:27:CA:09"
-              service_uuid: "19b10000-0000-537e-4f6c-d104768a1214"
-              char_uuid: "19b10000-1001-537e-4f6c-d104768a1214"
               gravity_scaling_factor: 4
               gyroscope_scaling_factor: 500
-              is_acc    : True
-              is_gyr    : True
-              is_mag    : False
-              is_euler  : True
-              is_quat   : False
-              is_temp   : False
-              is_baro   : False
-              is_hum    : False
+              is_acc: True
+              is_gyr: True
+              is_mag: False
+              is_euler: True
+              is_quat: False
+              is_temp: False
+              is_baro: False
+              is_hum: False
+            motors:
+              device_mapping:
+                knee:
+                  can_id: 1
+                ankle:
+                  can_id: 2
+              sampling_rate_hz: 100
+              buf_len: 10_000
+            telemetry:
+              buf_len: 1_000

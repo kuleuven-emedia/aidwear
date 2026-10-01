@@ -130,7 +130,10 @@ class PhoneGuiProducer(Producer):
                         }
                     },
                 )
-            elif gui_command in [GuiCommandType.CALIBRATE_MOTORS, GuiCommandType.CALIBRATE_IMUS]:
+            elif gui_command in [
+                GuiCommandType.CALIBRATE_MOTORS,
+                GuiCommandType.CALIBRATE_IMUS,
+            ]:
                 print(
                     f"User pressed [{gui_command.name}] in GUI. Sending trigger...",
                     flush=True,

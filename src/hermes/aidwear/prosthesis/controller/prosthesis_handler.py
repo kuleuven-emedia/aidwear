@@ -373,7 +373,9 @@ class ProsthesisHandler:
                 with self._next_calibration_event.lock:
                     next_calibration = self._next_calibration_event.next_value.value
                     gui_cmd = GuiCommandType(next_calibration)
-                    self._next_calibration_event.next_value.value = GuiCommandType.NULL.value
+                    self._next_calibration_event.next_value.value = (
+                        GuiCommandType.NULL.value
+                    )
 
                 if user_input == "M" or gui_cmd == GuiCommandType.CALIBRATE_MOTORS:
                     await self._calibrate_motors()
@@ -395,7 +397,9 @@ class ProsthesisHandler:
             with self._next_calibration_event.lock:
                 next_calibration = self._next_calibration_event.next_value.value
                 gui_cmd = GuiCommandType(next_calibration)
-                self._next_calibration_event.next_value.value = GuiCommandType.NULL.value
+                self._next_calibration_event.next_value.value = (
+                    GuiCommandType.NULL.value
+                )
 
             if user_input == "M" or gui_cmd == GuiCommandType.CALIBRATE_MOTORS:
                 res = await calibrate_fn()
