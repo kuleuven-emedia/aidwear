@@ -14,6 +14,7 @@ import numpy as np
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
+import pyqtgraph.opengl as gl
 
 from hermes.nicla_sense_me.utils.types import NiclaLocation
 from hermes.aidwear.prosthesis.utils.types import (
@@ -45,6 +46,40 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
     NICLA_BY_NAME: dict[str, NiclaLocation] = {loc.value: loc for loc in IMU_LOCATIONS}
     MOTOR_BY_NAME: dict[str, MotorId] = {m.name.lower(): m for m in MOTOR_IDS}
     ENCODER_BY_NAME: dict[str, EncoderId] = {e.name.lower(): e for e in ENCODER_IDS}
+
+    # 23-segment Xsens MVN Kinematic Chains
+    SPINE_BONES: list[tuple[int, int]] = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6)]
+    RIGHT_ARM_BONES: list[tuple[int, int]] = [(4, 7), (7, 8), (8, 9), (9, 10)]
+    LEFT_ARM_BONES: list[tuple[int, int]] = [(4, 11), (11, 12), (12, 13), (13, 14)]
+    RIGHT_LEG_BONES: list[tuple[int, int]] = [(0, 15), (15, 16), (16, 17), (17, 18)]
+    LEFT_LEG_BONES: list[tuple[int, int]] = [(0, 19), (19, 20), (20, 21), (21, 22)]
+
+    # Default standing human skeleton rest pose in meters (23 segments)
+    DEFAULT_REST_POSE: np.ndarray = np.array([
+        [0.0, 0.0, 0.95],     # 0: Pelvis
+        [0.0, 0.0, 1.03],     # 1: L5
+        [0.0, 0.0, 1.11],     # 2: L3
+        [0.0, 0.0, 1.20],     # 3: T12
+        [0.0, 0.0, 1.30],     # 4: T8
+        [0.0, 0.0, 1.42],     # 5: Neck
+        [0.0, 0.0, 1.58],     # 6: Head
+        [0.0, -0.18, 1.30],   # 7: Right Shoulder
+        [0.0, -0.32, 1.15],   # 8: Right Upper Arm
+        [0.0, -0.35, 0.90],   # 9: Right Forearm
+        [0.0, -0.35, 0.75],   # 10: Right Hand
+        [0.0, 0.18, 1.30],    # 11: Left Shoulder
+        [0.0, 0.32, 1.15],    # 12: Left Upper Arm
+        [0.0, 0.35, 0.90],    # 13: Left Forearm
+        [0.0, 0.35, 0.75],    # 14: Left Hand
+        [0.0, -0.10, 0.55],   # 15: Right Upper Leg
+        [0.0, -0.10, 0.15],   # 16: Right Lower Leg
+        [0.0, -0.10, 0.00],   # 17: Right Foot
+        [0.15, -0.10, 0.00],  # 18: Right Toe
+        [0.0, 0.10, 0.55],    # 19: Left Upper Leg
+        [0.0, 0.10, 0.15],    # 20: Left Lower Leg
+        [0.0, 0.10, 0.00],    # 21: Left Foot
+        [0.15, 0.10, 0.00],   # 22: Left Toe
+    ], dtype=np.float32)
 
     # Default locomotion / ambulation classes for AI Intent recognition
     DEFAULT_AI_CLASSES: list[str] = [
@@ -530,7 +565,120 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
             self._ai_text_items.append(ti)
 
         ai_card_layout.addWidget(self.ai_plot_widget)
+        self.ai_card.setMaximumHeight(260)
+        self.ai_plot_widget.setMaximumHeight(180)
         side_layout.addWidget(self.ai_card, stretch=1)
+
+        # ----------------------------------------------------
+        # Card 3: 3D MVN Skeleton Pose Visualizer
+        # ----------------------------------------------------
+        self.pose_card = QtWidgets.QFrame()
+        self.pose_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 8px;
+            }}
+        """)
+        pose_card_layout = QtWidgets.QVBoxLayout(self.pose_card)
+        pose_card_layout.setContentsMargins(10, 8, 10, 8)
+        pose_card_layout.setSpacing(6)
+
+        # Pose Card Header
+        pose_header = QtWidgets.QHBoxLayout()
+        pose_title = QtWidgets.QLabel("3D SKELETON POSE [MVN]")
+        pose_title.setStyleSheet(
+            "font-size: 11px; font-weight: 700; color: #38bdf8; letter-spacing: 0.6px;"
+        )
+        pose_header.addWidget(pose_title)
+        pose_header.addStretch()
+
+        self.pose_center_checkbox = QtWidgets.QCheckBox("Center Root")
+        self.pose_center_checkbox.setChecked(True)
+        self.pose_center_checkbox.setToolTip("Keep Pelvis centered at origin in the ground plane")
+        self.pose_center_checkbox.setStyleSheet("""
+            QCheckBox {
+                color: #94a3b8;
+                font-size: 11px;
+            }
+            QCheckBox::indicator {
+                width: 12px;
+                height: 12px;
+            }
+        """)
+        pose_header.addWidget(self.pose_center_checkbox)
+
+        self.pose_reset_btn = QtWidgets.QPushButton("↺ View")
+        self.pose_reset_btn.setToolTip("Reset camera view")
+        self.pose_reset_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #272738;
+                color: #cbd5e1;
+                border: 1px solid #3b3f54;
+                border-radius: 3px;
+                padding: 2px 7px;
+                font-size: 10px;
+                font-weight: 600;
+            }
+            QPushButton:hover { background-color: #35394d; border-color: #38bdf8; color: #f1f5f9; }
+        """)
+        self.pose_reset_btn.clicked.connect(self._reset_pose_camera)
+        pose_header.addWidget(self.pose_reset_btn)
+
+        self.pose_status_label = QtWidgets.QLabel("● STANDBY")
+        self.pose_status_label.setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold;")
+        pose_header.addWidget(self.pose_status_label)
+        pose_card_layout.addLayout(pose_header)
+
+        # 3D GL Viewport
+        self.pose_view = gl.GLViewWidget()
+        self.pose_view.setBackgroundColor("#12131a" if self.dark_mode else "#f8fafc")
+        self.pose_view.setMinimumHeight(240)
+        self._reset_pose_camera()
+
+        # Ground Grid (3.0m x 3.0m with 0.5m grid intervals)
+        self._pose_grid = gl.GLGridItem()
+        self._pose_grid.setSize(3.0, 3.0)
+        self._pose_grid.setSpacing(0.5, 0.5)
+        self._pose_grid.setColor((0.3, 0.35, 0.45, 0.35))
+        self.pose_view.addItem(self._pose_grid)
+
+        # Skeleton Bone Line Items
+        self._pose_spine_lines = gl.GLLinePlotItem(
+            pos=np.zeros((0, 3), dtype=np.float32), mode="lines", width=3.0, color=(0.22, 0.74, 0.97, 1.0)
+        )
+        self._pose_r_arm_lines = gl.GLLinePlotItem(
+            pos=np.zeros((0, 3), dtype=np.float32), mode="lines", width=2.5, color=(0.2, 0.83, 0.6, 1.0)
+        )
+        self._pose_l_arm_lines = gl.GLLinePlotItem(
+            pos=np.zeros((0, 3), dtype=np.float32), mode="lines", width=2.5, color=(0.65, 0.55, 0.98, 1.0)
+        )
+        self._pose_r_leg_lines = gl.GLLinePlotItem(
+            pos=np.zeros((0, 3), dtype=np.float32), mode="lines", width=3.0, color=(0.98, 0.75, 0.14, 1.0)
+        )
+        self._pose_l_leg_lines = gl.GLLinePlotItem(
+            pos=np.zeros((0, 3), dtype=np.float32), mode="lines", width=3.0, color=(0.96, 0.45, 0.71, 1.0)
+        )
+        for item in [
+            self._pose_spine_lines,
+            self._pose_r_arm_lines,
+            self._pose_l_arm_lines,
+            self._pose_r_leg_lines,
+            self._pose_l_leg_lines,
+        ]:
+            self.pose_view.addItem(item)
+
+        # Joints Scatter Item
+        self._pose_joints = gl.GLScatterPlotItem(
+            pos=np.zeros((0, 3), dtype=np.float32), size=7, color=(0.95, 0.96, 0.98, 1.0)
+        )
+        self.pose_view.addItem(self._pose_joints)
+
+        # Render initial standing reference pose
+        self._render_pose(self.DEFAULT_REST_POSE)
+
+        pose_card_layout.addWidget(self.pose_view, stretch=1)
+        side_layout.addWidget(self.pose_card, stretch=2)
 
     def _setup_plot_grid(self) -> None:
         """Create the 3x3 subplot grid with line curves and legends."""
@@ -682,6 +830,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         self._latest_ai_latency_ms = 0.0
         self._render_ai_predictions()
         self._update_mode_display(mode_id=0, source_id=0, seq_id=0, toa_s=0.0)
+        self._clear_pose_display()
 
     def _on_window_changed(self, text: str) -> None:
         """Handle user changing the time window duration via dropdown."""
@@ -839,6 +988,124 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                 self.status_badge.setStyleSheet(
                     "color: #22c55e; font-weight: bold; font-size: 12px; margin-right: 8px;"
                 )
+
+    def _reset_pose_camera(self) -> None:
+        """Reset the 3D pose view camera to default vantage point."""
+        if hasattr(self, "pose_view"):
+            self.pose_view.setCameraPosition(
+                pos=QtGui.QVector3D(0.0, 0.0, 0.95), distance=2.8, elevation=15.0, azimuth=-60.0
+            )
+
+    @classmethod
+    def get_pose_bones(cls, num_segments: int):
+        """Return bone connection tuples for the given segment count."""
+        if num_segments >= 23:
+            return (
+                cls.SPINE_BONES,
+                cls.RIGHT_ARM_BONES,
+                cls.LEFT_ARM_BONES,
+                cls.RIGHT_LEG_BONES,
+                cls.LEFT_LEG_BONES,
+            )
+        elif num_segments == 7:
+            # Lower-body layout: [pelvis, thigh_r, shank_r, foot_r, thigh_l, shank_l, foot_l]
+            r_leg = [(0, 1), (1, 2), (2, 3)]
+            l_leg = [(0, 4), (4, 5), (5, 6)]
+            return ([], [], [], r_leg, l_leg)
+        else:
+            chain = [(i, i + 1) for i in range(num_segments - 1)]
+            return (chain, [], [], [], [])
+
+    @staticmethod
+    def _build_line_segments(
+        bones: list[tuple[int, int]], pos: np.ndarray
+    ) -> np.ndarray:
+        """Convert bone index pairs into continuous line vertices for OpenGL lines mode."""
+        n = len(pos)
+        verts = []
+        for i, j in bones:
+            if i < n and j < n:
+                verts.append(pos[i])
+                verts.append(pos[j])
+        if len(verts) == 0:
+            return np.zeros((0, 3), dtype=np.float32)
+        return np.asarray(verts, dtype=np.float32)
+
+    def _render_pose(self, pos: np.ndarray) -> None:
+        """Render joint positions and bone connections on the 3D GL canvas."""
+        num_segments = pos.shape[0]
+        if (
+            getattr(self, "pose_center_checkbox", None)
+            and self.pose_center_checkbox.isChecked()
+            and num_segments > 0
+        ):
+            root_xy = pos[0, :2].copy()
+            pos_render = pos.copy()
+            pos_render[:, 0] -= root_xy[0]
+            pos_render[:, 1] -= root_xy[1]
+        else:
+            pos_render = pos
+
+        spine_b, r_arm_b, l_arm_b, r_leg_b, l_leg_b = self.get_pose_bones(num_segments)
+        self._pose_spine_lines.setData(
+            pos=self._build_line_segments(spine_b, pos_render)
+        )
+        self._pose_r_arm_lines.setData(
+            pos=self._build_line_segments(r_arm_b, pos_render)
+        )
+        self._pose_l_arm_lines.setData(
+            pos=self._build_line_segments(l_arm_b, pos_render)
+        )
+        self._pose_r_leg_lines.setData(
+            pos=self._build_line_segments(r_leg_b, pos_render)
+        )
+        self._pose_l_leg_lines.setData(
+            pos=self._build_line_segments(l_leg_b, pos_render)
+        )
+        self._pose_joints.setData(pos=pos_render)
+
+    def _handle_xsens_pose(self, bundle_data: dict, now: float) -> None:
+        """Parse incoming Xsens MVN 3D pose packet and update the skeleton visualizer."""
+        if not isinstance(bundle_data, dict) or "position" not in bundle_data:
+            return
+
+        samples = np.asarray(bundle_data["position"])
+        if samples.ndim == 3 and samples.shape[0] > 0:
+            pos = samples[-1].astype(np.float32)
+        elif samples.ndim == 2:
+            pos = samples.astype(np.float32)
+        else:
+            return
+
+        if pos.shape[-1] < 3:
+            return
+
+        if "toa_s" in bundle_data:
+            raw_t = np.asarray(bundle_data["toa_s"]).ravel()
+            if len(raw_t) > 0:
+                self._latest_time = max(self._latest_time, float(raw_t[-1]))
+
+        # Auto-detect units: if coordinates exceed 10.0 (e.g. 180 cm -> 1.8 m), convert to meters
+        if np.max(np.abs(pos)) > 10.0:
+            pos = pos / 100.0
+
+        self._render_pose(pos)
+
+        # Update tracking status badge
+        num_segments = pos.shape[0]
+        self.pose_status_label.setText(f"● TRACKING ({num_segments} Seg)")
+        self.pose_status_label.setStyleSheet(
+            "color: #22c55e; font-size: 11px; font-weight: bold;"
+        )
+
+    def _clear_pose_display(self) -> None:
+        """Reset 3D pose visualizer to default standing rest pose."""
+        if hasattr(self, "_pose_spine_lines"):
+            self._render_pose(self.DEFAULT_REST_POSE)
+            self.pose_status_label.setText("● STANDBY")
+            self.pose_status_label.setStyleSheet(
+                "color: #64748b; font-size: 11px; font-weight: bold;"
+            )
 
     def _extract_timestamps(
         self, bundle_data: dict, num_samples: int, now: float
@@ -1229,8 +1496,22 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
                         else bundle_data
                     )
                     self._handle_xsens_imu(payload, now)
+                    if isinstance(bundle_data, dict) and "xsens_pose" in bundle_data:
+                        self._handle_xsens_pose(bundle_data["xsens_pose"], now)
 
-                # 3. Motor updates (knee, ankle)
+                # 3. Xsens MVN 3D Pose updates ("xsens_pose")
+                elif (
+                    bundle_name in ("xsens_pose", "pose")
+                    or bundle_name.startswith("xsens_pose")
+                ):
+                    payload = (
+                        bundle_data.get("xsens_pose", bundle_data)
+                        if isinstance(bundle_data, dict)
+                        else bundle_data
+                    )
+                    self._handle_xsens_pose(payload, now)
+
+                # 4. Motor updates (knee, ankle)
                 elif bundle_name.startswith("motor_"):
                     motor_name = bundle_name[6:]
                     motor_id = self.MOTOR_BY_NAME.get(motor_name)

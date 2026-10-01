@@ -42,6 +42,7 @@ consumer_specs:
           node_id: "mvn"
           topics:
             - "xsens_motion_trackers"
+            - "xsens_pose"
           settings:
             file_path: "./dataset/mvn_016_1_1.hdf5"
             sampling_rate_hz: 60
