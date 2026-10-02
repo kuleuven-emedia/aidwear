@@ -221,13 +221,66 @@ The model expects a strictly ordered tensor of features across sensors:
 - Gyroscopes converted from sensor raw integers / $\text{dps}$ to $\text{rad/s}$ or standardized degrees/second:
   $$\omega_{\text{SI}} = \omega_{\text{raw}} \times \frac{500.0 \times \pi}{32768.0 \times 180.0}$$
 
-#### 3.3 Inference Execution:
-- Input shape: `(1, num_channels, sequence_length)`, where `sequence_length` is 120 samples ($2\text{ s}$).
+#### 3.3 Synchronous (MVN) vs. Asynchronous (Nicla) Preprocessing & Resampling
+Located in [`src/hermes/aidwear/ai_intent/utils/handler.py`](/src/hermes/aidwear/ai_intent/utils/handler.py#L170-L191) and [`src/hermes/aidwear/ai_intent/utils/utils.py`](/src/hermes/aidwear/ai_intent/utils/utils.py#L86-L268):
+
+```
++-------------------------------------------------------------------------------------------------------+
+|                                    IMU PREPROCESSING ARCHITECTURE                                     |
+|                                                                                                       |
+|  Xsens MVN (Awinda Base Station)                 5x Nicla Sense ME (BLE 5.0 Wireless)                |
+|  - Hardware locked 60Hz clock                    - Dynamic 70-95Hz fluctuating sample rate           |
+|  - Guaranteed periodic intervals                 - Wireless RF congestion, packet jitter, retries    |
+|                     |                                                       |                         |
+|                     v                                                       v                         |
+|       [preprocess_sync_imu]                                      [preprocess_async_imu]               |
+|  - Direct pinned shared buffer copy               - SharedTensorCircularBuffer.reserve(N, return_toa) |
+|                                                   - Auto-detect Acc-Only (15 ch) vs Acc+Gyro (30 ch)  |
+|                                                   - Interleaved feature column staging                |
+|                                                                             |                         |
+|                                                                             v                         |
+|                                                                   [resample_async_imu]                |
+|                                                   - Cutoff samples older than (t_now - 2.0s)          |
+|                                                   - Uniform grid: torch.linspace(t_start, t_now, 120) |
+|                                                   - 1D linear interpolation using per-sample toa_s    |
+|                     \                                                       /                         |
+|                      \                                                     /                          |
+|                       v                                                   v                           |
+|                      +-----------------------------------------------------+                          |
+|                      |  Uniform Staged Tensor (1, 15/30, 120) on GPU/CUDA  |                          |
+|                      |  -> Ready for DeepConvLSTM Forward Pass             |                          |
+|                      +-----------------------------------------------------+                          |
++-------------------------------------------------------------------------------------------------------+
+```
+
+1. **Shared Memory Window Reservation**:
+   - For Nicla IMUs, [`preprocess_async_imu`](/src/hermes/aidwear/ai_intent/utils/utils.py#L167-L268) queries each device's [`SharedTensorCircularBuffer`](/src/hermes/aidwear/ai_intent/utils/datastructures.py) via `buf.reserve(num_samples, return_toa=True)`.
+   - This emits non-blocking memory window slices (`windows` and `toa_windows`) along with `buf.release` unlock callbacks, avoiding lock contention and eliminating intermediate buffer copies.
+
+2. **Automatic Architecture Identification (Acc-Only vs. Acc+Gyro)**:
+   - Inside `_copy_logic`, the function dynamically inspects the column dimension `num_cols` of incoming sensor buffers:
+     - **Acc + Gyro Models** (`num_cols > 3`, e.g., 6 columns per sensor: 3 acceleration + 3 angular velocity):
+       The pipeline automatically maps 3-axis acceleration into columns `[3*dev_id : 3*(dev_id+1)]` and 3-axis gyroscope into columns `[start_acc + 3*num_dev : end_acc + 3*num_dev]`. For 5 limbs, this structures the tensor into a 30-channel matrix where all 15 acceleration channels are grouped contiguously, followed by all 15 gyroscope channels, strictly satisfying the input format of [`DCL_AidWear_Lower_Body_5_IMU.pt`](/src/hermes/aidwear/ai_intent/utils/configs/cybathlon_dcl_acc_gyro.yml).
+     - **Acc-Only Models** (`num_cols == 3`, 3 columns per sensor):
+       The pipeline maps acceleration directly into columns `[3*dev_id : 3*(dev_id+1)]`, yielding a 15-channel matrix formatted for [`DCL_AidWear_Lower_Body_5_IMU_Acc_Only.pt`](/src/hermes/aidwear/ai_intent/utils/configs/cybathlon_dcl_acc.yml).
+
+3. **Temporal Real-Time Alignment via `toa_s` Resampling**:
+   - **The Problem**: The offline DeepConvLSTM neural network is trained on fixed-frequency sequences with an exact 120-sample receptive field ($2.0\text{ s}$ duration at $60\text{ Hz}$). While Xsens MVN base stations guarantee fixed sample periods (60 Hz clock locked at the receiver), wearable Nicla sensors operate over asynchronous Bluetooth Low Energy (BLE) connections. BLE transmissions experience radio frequency congestion, CSMA/CA backoffs, and variable connection-interval scheduling, causing dynamic sample rate fluctuations ($70\text{--}95\text{ Hz}$) and packet arrival jitter.
+   - **The Solution**: In [`handler.py:L230-L265`](/src/hermes/aidwear/ai_intent/utils/handler.py#L230-L265), the pipeline passes `raw_imu` and `toa_s` to [`resample_async_imu`](/src/hermes/aidwear/ai_intent/utils/utils.py#L86-L165):
+     1. Defines the temporal window boundaries: $t_{\text{start}} = t_{\text{now}} - 2.0\text{ s}$ and $t_{\text{end}} = t_{\text{now}}$.
+     2. Generates a uniform temporal evaluation grid using PyTorch:
+        $$\text{target\_t} = \text{torch.linspace}(t_{\text{start}}, t_{\text{now}}, 120)$$
+     3. Masks out stale samples from the circular buffer where $t_{\text{sensor}} < t_{\text{start}}$ or $t_{\text{sensor}} > t_{\text{now}} + 0.1\text{ s}$.
+     4. Performs 1D piece-wise linear interpolation across the valid sample timestamps to resample each sensor's measurements onto `target_t`.
+   - **Result**: Irrespective of instantaneous wireless jitter or packet bursts, the neural network input layer is fed with a temporally continuous, uniform 120-sample window perfectly aligned with the offline model specification.
+
+#### 3.4 Inference Execution:
+- Input shape: `(1, num_channels, sequence_length)`, where `sequence_length` is 120 samples ($2\text{ s}$) and `num_channels` is 15 (Acc-only) or 30 (Acc+Gyro).
 - Model Architecture: Multi-horizon DeepConvLSTM.
 - Output: Logits across ambulation classes for multiple forecasting horizons (e.g. $t = 0.0\text{ s}$, $t = 0.2\text{ s}$, $t = 0.5\text{ s}$).
 - Latency Benchmark: Calculated as $(t_{\text{end}} - t_{\text{start}}) \times 1000\text{ ms}$ and published alongside predictions.
 
-#### 3.4 Majority Voting Filter:
+#### 3.5 Majority Voting Filter:
 To prevent false-positive mode switching from single-frame neural network noise:
 ```python
 self._intent_majority_vote_buf.appendleft(prediction)
@@ -448,8 +501,9 @@ settings:
 - **The Trade-Off**: Hardwired cables across the human body (pelvis to shank) suffer from motion artifacts, snag hazards, and physical fatigue breaks during gait trials.
 - **The Decision**: BLE 5.0 for body-worn IMUs (Nicla [with custom firmware](/sensors_firmware/nicla_ble/)), CAN-FD for joint actuators ([with custom autohealing motor manager](/src/hermes/aidwear/prosthesis/motor_control/epos_facade.py)) and encoders mounted directly on the prosthesis chassis.
 - **Engineering Mitigation**:
-  - Because BLE packets can suffer packet jitter, timestamps are recorded immediately in `BleakGATTCharacteristic` callbacks (`toa_s = get_time()`).
-  - Pre-hook script (`prehook_prosthesis.sh`) cycles `bluetoothctl` prior to launching the pipeline to clear stale BlueZ connection handles to avoid BLE connection issues.
+  - **Connection Stability**: Pre-hook script (`prehook_prosthesis.sh`) cycles `bluetoothctl` prior to launching the pipeline to clear stale BlueZ connection handles to avoid BLE connection issues.
+  - **Timestamping at Ingestion**: In `BleakGATTCharacteristic` callbacks, arrival timestamps are recorded immediately using `toa_s = get_time()` to capture the exact arrival time before buffer queuing.
+  - **Dynamic Rate Alignment (`resample_async_imu`)**: Wireless congestion causes Nicla packet intervals to fluctuate dynamically ($70\text{--}95\text{ Hz}$). The AI inference pipeline uses the per-sample `toa_s` to interpolate the last $2.0\text{ s}$ of sensor data onto a uniform 120-step grid at $60\text{ Hz}$. This decouples the neural network from real-time wireless jitter and guarantees continuous compatibility with offline trained models.
 
 ### 6.3 Shared Memory Ring Buffers vs Inter-Process Queues
 - **The Trade-Off**: Standard Python `multiprocessing.Queue` serializes objects via `pickle`, introducing significant CPU overhead and garbage collection pauses when moving high-bandwidth multi-channel NumPy arrays.
