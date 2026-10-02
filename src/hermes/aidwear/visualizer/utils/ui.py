@@ -56,29 +56,29 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
 
     # Default standing human skeleton rest pose in meters (23 segments)
     DEFAULT_REST_POSE: np.ndarray = np.array([
-        [0.0, 0.0, 0.95],     # 0: Pelvis
-        [0.0, 0.0, 1.03],     # 1: L5
-        [0.0, 0.0, 1.11],     # 2: L3
-        [0.0, 0.0, 1.20],     # 3: T12
-        [0.0, 0.0, 1.30],     # 4: T8
-        [0.0, 0.0, 1.42],     # 5: Neck
-        [0.0, 0.0, 1.58],     # 6: Head
-        [0.0, -0.18, 1.30],   # 7: Right Shoulder
-        [0.0, -0.32, 1.15],   # 8: Right Upper Arm
-        [0.0, -0.35, 0.90],   # 9: Right Forearm
-        [0.0, -0.35, 0.75],   # 10: Right Hand
-        [0.0, 0.18, 1.30],    # 11: Left Shoulder
-        [0.0, 0.32, 1.15],    # 12: Left Upper Arm
-        [0.0, 0.35, 0.90],    # 13: Left Forearm
-        [0.0, 0.35, 0.75],    # 14: Left Hand
-        [0.0, -0.10, 0.55],   # 15: Right Upper Leg
-        [0.0, -0.10, 0.15],   # 16: Right Lower Leg
-        [0.0, -0.10, 0.00],   # 17: Right Foot
-        [0.15, -0.10, 0.00],  # 18: Right Toe
-        [0.0, 0.10, 0.55],    # 19: Left Upper Leg
-        [0.0, 0.10, 0.15],    # 20: Left Lower Leg
-        [0.0, 0.10, 0.00],    # 21: Left Foot
-        [0.15, 0.10, 0.00],   # 22: Left Toe
+        [0.0, 0.0, 1.1],        # 0: Pelvis
+        [0.0, 0.0, 1.18],       # 1: L5
+        [0.0, 0.0, 1.26],       # 2: L3
+        [0.0, 0.0, 1.35],       # 3: T12
+        [0.0, 0.0, 1.45],       # 4: T8
+        [0.0, 0.0, 1.57],       # 5: Neck
+        [0.0, 0.0, 1.73],       # 6: Head
+        [0.0, -0.18, 1.45],     # 7: Right Shoulder
+        [0.0, -0.32, 1.30],     # 8: Right Upper Arm
+        [0.0, -0.35, 1.05],     # 9: Right Forearm
+        [0.0, -0.35, 0.9],      # 10: Right Hand
+        [0.0, 0.18, 1.45],      # 11: Left Shoulder
+        [0.0, 0.32, 1.30],      # 12: Left Upper Arm
+        [0.0, 0.35, 1.05],      # 13: Left Forearm
+        [0.0, 0.35, 0.9],       # 14: Left Hand
+        [0.0, -0.10, 0.70],     # 15: Right Upper Leg
+        [0.0, -0.10, 0.30],     # 16: Right Lower Leg
+        [0.0, -0.10, 0.15],     # 17: Right Foot
+        [0.15, -0.10, 0.15],    # 18: Right Toe
+        [0.0, 0.10, 0.70],      # 19: Left Upper Leg
+        [0.0, 0.10, 0.30],      # 20: Left Lower Leg
+        [0.0, 0.10, 0.15],      # 21: Left Foot
+        [0.15, 0.10, 0.15],     # 22: Left Toe
     ], dtype=np.float32)
 
     # Default locomotion / ambulation classes for AI Intent recognition
@@ -565,8 +565,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
             self._ai_text_items.append(ti)
 
         ai_card_layout.addWidget(self.ai_plot_widget)
-        self.ai_card.setMaximumHeight(260)
-        self.ai_plot_widget.setMaximumHeight(180)
+        self.ai_plot_widget.setMinimumHeight(180)
         side_layout.addWidget(self.ai_card, stretch=1)
 
         # ----------------------------------------------------
@@ -678,7 +677,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         self._render_pose(self.DEFAULT_REST_POSE)
 
         pose_card_layout.addWidget(self.pose_view, stretch=1)
-        side_layout.addWidget(self.pose_card, stretch=2)
+        side_layout.addWidget(self.pose_card, stretch=1)
 
     def _setup_plot_grid(self) -> None:
         """Create the 3x3 subplot grid with line curves and legends."""
@@ -993,7 +992,7 @@ class VisualizerMainWindow(QtWidgets.QMainWindow):
         """Reset the 3D pose view camera to default vantage point."""
         if hasattr(self, "pose_view"):
             self.pose_view.setCameraPosition(
-                pos=QtGui.QVector3D(0.0, 0.0, 0.95), distance=2.8, elevation=15.0, azimuth=-60.0
+                pos=QtGui.QVector3D(0.0, 0.0, 1.1), distance=2.3, elevation=15.0, azimuth=-60.0
             )
 
     @classmethod

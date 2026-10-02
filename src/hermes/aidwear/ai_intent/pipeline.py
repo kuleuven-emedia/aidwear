@@ -336,20 +336,19 @@ class IntentClassifierPipeline(Pipeline):
             #   [pelvis, thigh_right, shank_right, foot_right, thigh_left, shank_left, foot_left]
             data: dict = msg.get("xsens_motion_trackers", {})
             if data:
+                # Route data features in the order that the model expects.
+                # NOTE: if orienting IMUs differently than RevalExo alpha (LEDs up, shanks laterally near ankles, mid-thighs laterally), flip IMUs' axes correspondingly.
+                if data["acceleration"].shape[1] == 17:
+                    ids = [0, 11, 14, 12, 15]
+                elif data["acceleration"].shape[1] == 7:
+                    ids = [0, 1, 4, 2, 5]
+
                 self._input_buffer[ModalityType.RAW_IMU]["mvn"].put(
-                    # Route data features in the order that the model expects.
-                    # Data comes in:
-                    #   [pelvis_acc_xyz, thigh_right_acc_xyz, shank_right_acc_xyz, foot_right_acc_xyz, thigh_left_acc_xyz, shank_left_acc_xyz, foot_left_acc_xyz,
-                    #       pelvis_gyr_xyz, thigh_right_gyr_xyz, shank_right_gyr_xyz, foot_right_gyr_xyz, thigh_left_gyr_xyz, shank_left_gyr_xyz, foot_left_gyr_xyz]
-                    # Model expects:
-                    #   [pelvis_acc_xyz, thigh_right_acc_xyz, thigh_left_acc_xyz, shank_right_acc_xyz, shank_left_acc_xyz, foot_right_acc_xyz, foot_left_acc_xyz,
-                    #       pelvis_gyr_xyz, thigh_right_gyr_xyz, thigh_left_gyr_xyz, shank_right_gyr_xyz, shank_left_gyr_xyz, foot_right_gyr_xyz, foot_left_gyr_xyz]
-                    # NOTE: if orienting IMUs differently than RevalExo alpha (LEDs up, shanks laterally near ankles, mid-thighs laterally), flip IMUs' axes correspondingly.
                     new_data=torch.from_numpy(
                         np.concatenate(
                             (
-                                data["acceleration"][0][[0, 1, 4, 2, 5], :],
-                                data["gyroscope"][0][[0, 1, 4, 2, 5], :],
+                                data["acceleration"][0][ids, :],
+                                data["gyroscope"][0][ids, :],
                             ),
                             axis=0,
                             dtype=np.float32,

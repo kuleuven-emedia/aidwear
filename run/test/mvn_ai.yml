@@ -72,7 +72,7 @@ consumer_specs:
               Step Over: 9
               Bench: 10
               Balance Beam: 11
-              High-step": 12
+              High-step: 12
             in_streams:
               - "mvn"
 
@@ -102,7 +102,7 @@ pipeline_specs:
             Step Over: 9
             Bench: 10
             Balance Beam: 11
-            High-step": 12
+            High-step: 12
           input_features:
             raw_imu:
               num_features:
