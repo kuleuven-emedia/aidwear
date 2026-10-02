@@ -1,9 +1,10 @@
 # AidWear Guidelines Reference
 
-The primary system and integration guidelines document is maintained at the root of the repository:
-[GUIDELINES.md](../GUIDELINES.md)
+The primary system and integration guidelines documents are maintained at the root of the repository:
+- [GUIDELINES.md](../GUIDELINES.md) — Comprehensive system architecture, motor controller, and pipeline guide.
+- [AGENT.md](../AGENT.md) — Dedicated recipe and prompt guide for coding agents to implement new HERMES nodes, sensors, actuators, and closed-loop devices.
 
-Please refer to that document for:
+Please refer to these documents for:
 - System & Project Overview
 - Hierarchical Control Architecture (High, Mid, Low level)
 - HERMES Middleware Fundamentals & Node FSM
@@ -14,3 +15,4 @@ Please refer to that document for:
 - Configuration & Execution Profiles
 - Developer & Agent Extension Recipes
 - Critical Invariants and Gotchas
+
